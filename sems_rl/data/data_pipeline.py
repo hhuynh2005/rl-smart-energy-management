@@ -1,10 +1,20 @@
 """
 Data Pipeline for SEMS-RL Microgrid.
 Quy trình tiền xử lý, tính thống kê chuẩn hóa trên tập Train và phân chia tập dữ liệu.
-Tác giả phụ trách: Nguyễn Thị Cẩm Ly (Dữ liệu chuỗi thời gian).
+Tác giả phụ trách: Nguyễn Văn Huỳnh (Nhóm trưởng - Dữ liệu chuỗi thời gian).
 """
 
 import os
+import sys
+
+# Ensure UTF-8 console output on Windows to prevent UnicodeEncodeError
+for stream in [sys.stdout, sys.stderr]:
+    if hasattr(stream, "reconfigure"):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
 from typing import Dict, Tuple, Optional
 import numpy as np
 import pandas as pd
@@ -39,7 +49,7 @@ class DataPipeline:
 
         if not os.path.exists(csv_path):
             from sems_rl.data.generator import generate_synthetic_microgrid_dataset
-            print(f"[DataPipeline] Không tìm thấy '{csv_path}'. Đang tự động tạo bộ dữ liệu 365 ngày...")
+            print(f"[DataPipeline] CSV not found at '{csv_path}'. Generating 365-day dataset...")
             generate_synthetic_microgrid_dataset(output_path=csv_path)
 
         self.df_raw = pd.read_csv(csv_path)
@@ -87,8 +97,8 @@ class DataPipeline:
         if self.c_ref <= 0:
             self.c_ref = 27000.0  # Giá trị phòng thủ dự phòng (VNĐ/bước)
 
-        print(f"[DataPipeline] Phân chia dữ liệu: Train={n_train_days} ngày, Val={n_val_days} ngày, Test={n_test_days} ngày.")
-        print(f"[DataPipeline] Thống kê Train: P_load_max={self.p_load_max_train:.2f} kW, C_peak={self.c_grid_peak_train:.1f} VNĐ, C_ref={self.c_ref:.1f} VNĐ/bước.")
+        print(f"[DataPipeline] Split: Train={n_train_days} days, Val={n_val_days} days, Test={n_test_days} days.")
+        print(f"[DataPipeline] Train Stats: P_load_max={self.p_load_max_train:.2f} kW, C_peak={self.c_grid_peak_train:.1f} VND, C_ref={self.c_ref:.1f} VND/step.")
 
     def get_num_days(self, split: str = "train") -> int:
         start_day, end_day = self.splits[split]
@@ -101,7 +111,7 @@ class DataPipeline:
         start_day, end_day = self.splits[split]
         day_idx = start_day + day_offset
         if not (start_day <= day_idx < end_day):
-            raise IndexError(f"Day offset {day_offset} vượt ngoài phạm vi phân vùng '{split}' [{0}, {end_day - start_day - 1}]")
+            raise IndexError(f"Day offset {day_offset} out of range for split '{split}' [{0}, {end_day - start_day - 1}]")
 
         row_start = day_idx * self.steps_per_day
         row_end = row_start + self.steps_per_day

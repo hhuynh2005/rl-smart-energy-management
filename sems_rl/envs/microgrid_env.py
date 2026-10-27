@@ -7,6 +7,16 @@ Tác giả phụ trách: Lý Đình Sơn (Kiến trúc Env & Guardrail) & Nguy�
 
 from typing import Dict, Any, Tuple, Optional
 import os
+import sys
+
+# Ensure UTF-8 console output on Windows
+for stream in [sys.stdout, sys.stderr]:
+    if hasattr(stream, "reconfigure"):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
 import yaml
 import numpy as np
 import pandas as pd

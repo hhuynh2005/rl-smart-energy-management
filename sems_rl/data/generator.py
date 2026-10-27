@@ -6,6 +6,16 @@ Tác giả phụ trách: Nguyễn Thị Cẩm Ly (Dữ liệu chuỗi thời gia
 """
 
 import os
+import sys
+
+# Ensure UTF-8 console output on Windows to prevent UnicodeEncodeError
+for stream in [sys.stdout, sys.stderr]:
+    if hasattr(stream, "reconfigure"):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
 from typing import Optional
 import numpy as np
 import pandas as pd
@@ -140,7 +150,7 @@ def generate_synthetic_microgrid_dataset(
     if output_path:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         df.to_csv(output_path, index=False)
-        print(f"[DataGenerator] Đã tạo thành công {len(df)} dòng dữ liệu ({num_days} ngày) tại: {output_path}")
+        print(f"[DataGenerator] Generated {len(df)} rows ({num_days} days) at: {output_path}")
         
     return df
 
