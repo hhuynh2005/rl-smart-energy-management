@@ -159,6 +159,50 @@ export default function SmartHouseSimulation({
   const isCharging = stepData.p_batt_kw > 0.05;
   const isDischarging = stepData.p_batt_kw < -0.05;
 
+
+  // Helper to render mini SVG sparklines for live telemetry cards
+  const renderSparkline = (getValue, strokeColor, fixedMin = null, fixedMax = null) => {
+    if (!timeline || timeline.length === 0) return null;
+    const w = 75;
+    const h = 28;
+    const values = timeline.map(getValue);
+    const min = fixedMin !== null ? fixedMin : Math.min(...values);
+    const max = fixedMax !== null ? fixedMax : Math.max(...values, min + 0.001);
+    const range = (max - min) || 1;
+
+    const points = values.map((v, idx) => {
+      const x = (idx / (timeline.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 8) - 4;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+    const currentIdx = Math.min(currentStep, timeline.length - 1);
+    const curX = ((currentIdx / (timeline.length - 1)) * w).toFixed(1);
+    const curY = (h - ((values[currentIdx] - min) / range) * (h - 8) - 4).toFixed(1);
+
+    const polylineStr = points.join(' ');
+    const gradId = `spark-${strokeColor.replace('#', '')}`;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 'auto' }}>
+        <svg width={w} height={h} style={{ overflow: 'visible', flexShrink: 0 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.35" />
+              <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+          <polygon points={`${polylineStr} ${w},${h} 0,${h}`} fill={`url(#${gradId})`} />
+          <polyline points={polylineStr} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx={curX} cy={curY} r="3.5" fill="#FFFFFF" stroke={strokeColor} strokeWidth="2" />
+        </svg>
+        <span style={{ fontSize: '0.65rem', color: '#6B7280', marginTop: '2px', fontFamily: 'monospace' }}>
+          24h Trend
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="simulation-viewport" style={{ '--sky-top': skyTop, '--sky-bottom': skyBottom }}>
       {/* 1. Thanh điều khiển phát lại mô phỏng 24h (Playback Bar) */}
@@ -753,6 +797,7 @@ export default function SmartHouseSimulation({
               {stepData.p_pv_kw.toFixed(1)} <small style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>kW</small>
             </span>
           </div>
+          {renderSparkline((d) => d.p_pv_kw, '#F59E0B', 0, 150)}
         </div>
 
         {/* House Load Telemetry */}
@@ -766,6 +811,7 @@ export default function SmartHouseSimulation({
               {stepData.p_load_kw.toFixed(1)} <small style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>kW</small>
             </span>
           </div>
+          {renderSparkline((d) => d.p_load_kw, '#3B82F6')}
         </div>
 
         {/* Battery Telemetry */}
@@ -785,6 +831,7 @@ export default function SmartHouseSimulation({
               {stepData.p_batt_kw > 0 ? `+${stepData.p_batt_kw.toFixed(1)} kW (Sạc)` : stepData.p_batt_kw < 0 ? `${stepData.p_batt_kw.toFixed(1)} kW (Xả)` : '0.0 kW (Nghỉ)'}
             </span>
           </div>
+          {renderSparkline((d) => d.soc_pct, '#10B981', 0, 100)}
         </div>
 
         {/* Grid Telemetry */}
@@ -798,6 +845,7 @@ export default function SmartHouseSimulation({
               {stepData.p_buy_kw > 0 ? `Mua: ${stepData.p_buy_kw.toFixed(1)} kW` : stepData.p_sell_kw > 0 ? `Bán: ${stepData.p_sell_kw.toFixed(1)} kW` : 'Cân bằng (0 kW)'}
             </span>
           </div>
+          {renderSparkline((d) => d.p_grid_kw, '#8B5CF6')}
         </div>
       </div>
     </div>

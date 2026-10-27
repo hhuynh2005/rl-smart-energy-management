@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist is tracked so server.py works out-of-the-box without requiring npm build
 dist-ssr
 *.local
 
