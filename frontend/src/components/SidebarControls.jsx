@@ -39,10 +39,10 @@ export default function SidebarControls({
 
   return (
     <aside className="sidebar">
-      {/* 1. Chọn Kịch bản */}
+      {/* 1. Chọn Kịch bản thử nghiệm */}
       <div className="sidebar-section">
         <div className="sidebar-title">
-          <Sliders size={16} />
+          <Sliders size={15} />
           <span>1. Kịch bản thử nghiệm</span>
         </div>
 
@@ -107,10 +107,10 @@ export default function SidebarControls({
         )}
       </div>
 
-      {/* 2. Chiến lược điều khiển */}
+      {/* 2. Chiến lược điều khiển pin */}
       <div className="sidebar-section">
         <div className="sidebar-title">
-          <Cpu size={16} />
+          <Cpu size={15} />
           <span>2. Chiến lược điều khiển Pin</span>
         </div>
 
@@ -153,13 +153,13 @@ export default function SidebarControls({
             />
             <div>
               <div className="radio-label-title">Thủ công: Interactive Schedule</div>
-              <div className="radio-label-desc">Sạc đêm giờ rẻ (22h-04h), xả mạnh giờ cao điểm</div>
+              <div className="radio-label-desc">Sạc đêm giá rẻ (22h-04h), xả mạnh giờ cao điểm</div>
             </div>
           </label>
         </div>
 
         {/* Initial SoC Slider */}
-        <div className="control-group" style={{ marginTop: '0.5rem' }}>
+        <div className="control-group" style={{ marginTop: '0.4rem' }}>
           <label className="control-label">
             <span>Mức sạc pin ban đầu (SoC 00:00):</span>
             <span className="control-value">{(config.initialSoc * 100).toFixed(0)}%</span>
@@ -191,7 +191,7 @@ export default function SidebarControls({
       {/* 4. Thông số kỹ thuật hệ thống */}
       <div className="sidebar-section">
         <div className="sidebar-title">
-          <Battery size={16} />
+          <Battery size={15} />
           <span>3. Thông số kỹ thuật (BESS & PV)</span>
         </div>
 
@@ -228,12 +228,12 @@ export default function SidebarControls({
       </div>
 
       {/* 5. Ghi chú môn học */}
-      <div className="specs-box" style={{ background: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-        <div style={{ display: 'flex', gap: '0.4rem', color: '#FBBF24', fontWeight: 600, fontSize: '0.78rem' }}>
-          <Info size={16} />
+      <div className="note-box">
+        <div className="note-title">
+          <Info size={15} />
           <span>Lưu ý BTL Môn Học:</span>
         </div>
-        <p style={{ fontSize: '0.72rem', color: '#D1D5DB', marginTop: '0.2rem' }}>
+        <p className="note-desc">
           Các thuật toán RL (SAC, TD3, PPO, DDQN) hiện do các thành viên (Trường, Quang Anh, Dương, Ly) tự code. Giao diện này phục vụ nghiệm thu môi trường và chạy thử nghiệm mốc đối chứng.
         </p>
       </div>

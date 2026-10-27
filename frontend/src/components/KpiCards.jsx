@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, Zap, Sun, RefreshCw, ShieldCheck, TrendingDown } from 'lucide-react';
+import { DollarSign, Zap, Sun, RefreshCw, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react';
 
 export default function KpiCards({ metrics, policyMode }) {
   if (!metrics) return null;
@@ -19,12 +19,12 @@ export default function KpiCards({ metrics, policyMode }) {
       <div className="kpi-card" style={{ '--card-accent': '#10B981' }}>
         <div className="kpi-header">
           <span className="kpi-label">Chi phí điện (J)</span>
-          <DollarSign size={18} className="kpi-icon" />
+          <DollarSign size={16} className="kpi-icon" />
         </div>
-        <div className="kpi-value">{costVal.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} đ</div>
+        <div className="kpi-value">{costVal.toLocaleString('vi-VN', { maximumFractionDigits: 0 })} <span style={{ fontSize: '1rem', fontWeight: 600 }}>đ</span></div>
         {!isNoBat && savingPct !== 0 ? (
           <div className="kpi-delta positive">
-            <TrendingDown size={14} />
+            <TrendingDown size={13} />
             <span>{savingPct > 0 ? `-${savingPct.toFixed(1)}%` : `+${Math.abs(savingPct).toFixed(1)}%`} vs NoBat</span>
           </div>
         ) : (
@@ -36,12 +36,12 @@ export default function KpiCards({ metrics, policyMode }) {
       <div className="kpi-card" style={{ '--card-accent': '#8B5CF6' }}>
         <div className="kpi-header">
           <span className="kpi-label">Đỉnh mua lưới (Peak)</span>
-          <Zap size={18} className="kpi-icon" />
+          <Zap size={16} className="kpi-icon" />
         </div>
-        <div className="kpi-value">{peakVal.toFixed(1)} <small style={{ fontSize: '0.9rem' }}>kW</small></div>
+        <div className="kpi-value">{peakVal.toFixed(1)} <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>kW</span></div>
         {!isNoBat && shavingPct !== 0 ? (
           <div className="kpi-delta positive">
-            <TrendingDown size={14} />
+            <TrendingDown size={13} />
             <span>{shavingPct.toFixed(1)}% cắt đỉnh</span>
           </div>
         ) : (
@@ -53,7 +53,7 @@ export default function KpiCards({ metrics, policyMode }) {
       <div className="kpi-card" style={{ '--card-accent': '#F59E0B' }}>
         <div className="kpi-header">
           <span className="kpi-label">Tự tiêu thụ PV</span>
-          <Sun size={18} className="kpi-icon" />
+          <Sun size={16} className="kpi-icon" />
         </div>
         <div className="kpi-value">{pvSelfPct.toFixed(1)}%</div>
         <div className="kpi-delta neutral">Điện mặt trời dùng nội bộ</div>
@@ -63,9 +63,9 @@ export default function KpiCards({ metrics, policyMode }) {
       <div className="kpi-card" style={{ '--card-accent': '#3B82F6' }}>
         <div className="kpi-header">
           <span className="kpi-label">Chu kỳ pin (EFC)</span>
-          <RefreshCw size={18} className="kpi-icon" />
+          <RefreshCw size={16} className="kpi-icon" />
         </div>
-        <div className="kpi-value">{efc.toFixed(3)} <small style={{ fontSize: '0.85rem' }}>cycles</small></div>
+        <div className="kpi-value">{efc.toFixed(3)} <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>cycles</span></div>
         <div className="kpi-delta neutral">Hao mòn tương đương/ngày</div>
       </div>
 
@@ -73,10 +73,10 @@ export default function KpiCards({ metrics, policyMode }) {
       <div className="kpi-card" style={{ '--card-accent': clippedSteps > 0 ? '#EF4444' : '#10B981' }}>
         <div className="kpi-header">
           <span className="kpi-label">Safety Guardrail</span>
-          <ShieldCheck size={18} className="kpi-icon" />
+          <ShieldCheck size={16} className="kpi-icon" />
         </div>
         <div className="kpi-value" style={{ color: clippedSteps > 0 ? '#F87171' : '#34D399' }}>
-          {clippedSteps} <small style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>/ 96 bước</small>
+          {clippedSteps} <span style={{ fontSize: '0.85rem', color: '#94A3B8', fontWeight: 600 }}>/ 96 bước</span>
         </div>
         <div className="kpi-delta neutral">Bảo vệ dải SoC 20% - 90%</div>
       </div>

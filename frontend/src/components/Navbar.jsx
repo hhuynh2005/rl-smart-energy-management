@@ -1,14 +1,15 @@
 import React from 'react';
-import { Zap, Activity, Home, BarChart2, Table, BookOpen, SunMedium, ShieldCheck } from 'lucide-react';
+import { Zap, Activity, Home, BarChart2, Table, BookOpen, SunMedium, ChevronDown } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioName }) {
   return (
     <header className="navbar">
+      {/* 1. Brand Logo & System Badges */}
       <div className="nav-brand">
         <div className="brand-icon-wrapper">
-          <Zap size={24} color="#FFFFFF" />
+          <Zap size={22} color="#FFFFFF" />
         </div>
-        <div>
+        <div className="brand-titles">
           <div className="brand-title">SEMS-RL</div>
           <div className="brand-subtitle">Smart Energy Management & Microgrid Digital Twin</div>
         </div>
@@ -25,13 +26,14 @@ export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioNa
         </div>
       </div>
 
+      {/* 2. Navigation Tabs (Center) */}
       <nav className="nav-tabs">
         <button
           className={`nav-tab-btn ${activeTab === 'house' ? 'active' : ''}`}
           onClick={() => setActiveTab('house')}
           id="tab-btn-house"
         >
-          <Home size={16} />
+          <Home size={15} />
           <span>Mô Phỏng Căn Nhà & Dòng Điện</span>
         </button>
         <button
@@ -39,7 +41,7 @@ export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioNa
           onClick={() => setActiveTab('dashboard')}
           id="tab-btn-dashboard"
         >
-          <BarChart2 size={16} />
+          <BarChart2 size={15} />
           <span>Bảng Điều Khiển Đồ Thị & KPI</span>
         </button>
         <button
@@ -47,16 +49,24 @@ export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioNa
           onClick={() => setActiveTab('table')}
           id="tab-btn-table"
         >
-          <Table size={16} />
+          <Table size={15} />
           <span>Dữ Liệu 96 Bước & CSV</span>
         </button>
-      </nav>
-
-      <div className="nav-actions">
-        <button className="btn-doc" onClick={onOpenDocs} id="btn-open-doc">
+        <button
+          className="nav-tab-btn"
+          onClick={onOpenDocs}
+          id="tab-btn-doc"
+        >
           <BookOpen size={15} />
           <span>Báo Cáo TH2 (MDP)</span>
         </button>
+      </nav>
+
+      {/* 3. User Admin Profile (Right) */}
+      <div className="nav-profile" title="Tài khoản Quản trị viên SEMS-RL">
+        <div className="avatar-circle">A</div>
+        <span className="admin-name">Admin</span>
+        <ChevronDown size={14} color="#94A3B8" />
       </div>
     </header>
   );

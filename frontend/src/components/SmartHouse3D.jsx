@@ -1,8 +1,23 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Camera, Eye, Maximize2, RotateCcw, Sun, Battery, Home, Zap, Layers } from 'lucide-react';
+import { Camera, Eye, Sun, Battery, Home, Zap, Loader2 } from 'lucide-react';
 
+/**
+ * SmartHouse3D - 3D Digital Twin of the Smart Microgrid Campus
+ * High-fidelity Three.js scene faithfully reproducing docs/demo.png:
+ * - Aerial/Isometric camera vantage point capturing all structures in 1 default view
+ * - Auto-resizing with ResizeObserver, filling 100% of container (flex: 1)
+ * - Modern Architectural Smart Campus Building (Ivory/Stone facade + Glass curtain walls)
+ * - Extensive Rooftop Solar PV Installation tiled on building roofs
+ * - Large commercial ground/canopy solar PV farm (150 kWp) on the left
+ * - Industrial BESS container (200 kWh / 50 kW) with dynamic LED status bar
+ * - High-voltage steel lattice transmission pylon & substation on the right
+ * - Asphalt roadway network with painted yellow dashed lines & parked 3D cars
+ * - Glowing cyber laser energy flow conduits with real-time traveling orbs
+ * - Floating 3D holographic badges for PV, Load, BESS, and Grid with smooth camera tween
+ * - Pause animation when tab is inactive (document.hidden)
+ */
 export default function SmartHouse3D({
   stepData,
   currentStep,
@@ -14,26 +29,25 @@ export default function SmartHouse3D({
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
   const controlsRef = useRef(null);
+  const [isSceneReady, setIsSceneReady] = useState(false);
 
-  // Mesh & Light references for continuous animation
+  // References for continuous dynamic animation
   const animObjectsRef = useRef({
-    sunMesh: null,
     sunLight: null,
-    moonMesh: null,
+    sunMesh: null,
     moonLight: null,
+    moonMesh: null,
     hemiLight: null,
-    dirLight: null,
+    ambientLight: null,
     windowLights: [],
-    streetLights: [],
     batteryLed: null,
-    batteryGlow: null,
     pvPanels: [],
     flowCurves: {},
     flowParticles: {},
     anchorPoints: {},
   });
 
-  // Screen projected 2D coordinates for 3D floating badges
+  // Screen projected 2D coordinates for floating badges
   const [badges, setBadges] = useState({
     pv: { x: 0, y: 0, visible: false },
     battery: { x: 0, y: 0, visible: false },
@@ -41,662 +55,837 @@ export default function SmartHouse3D({
     grid: { x: 0, y: 0, visible: false },
   });
 
-  // Smooth camera preset transition
+  // Smooth camera preset interpolation
   const targetCameraPos = useRef(null);
   const targetLookAt = useRef(null);
 
-  const setCameraPreset = useCallback((pos, lookAt = [0, 2, 0]) => {
+  const setCameraPreset = useCallback((pos, lookAt = [0, 2.5, -2]) => {
     targetCameraPos.current = new THREE.Vector3(...pos);
     targetLookAt.current = new THREE.Vector3(...lookAt);
   }, []);
 
-  // --- INITIALIZE THREE.JS SCENE ---
+  // --- INITIALIZE THREE.JS SCENE WITH RESIZEOBSERVER ---
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight || 640;
+    const width = container.clientWidth || 1000;
+    const height = container.clientHeight || 500;
 
-    // 1. Scene & Atmosphere Fog
+    // 1. Scene & Atmospheric Fog
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0A1120');
-    scene.fog = new THREE.FogExp2('#0A1120', 0.012);
+    scene.background = new THREE.Color('#38BDF8');
+    scene.fog = new THREE.FogExp2('#BAE6FD', 0.005);
     sceneRef.current = scene;
 
-    // 2. Camera - Wide perspective
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.5, 300);
-    camera.position.set(28, 20, 28);
+    // 2. Camera - Elevated aerial/isometric vantage point matching demo.png
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.5, 600);
+    camera.position.set(50, 38, 55);
     cameraRef.current = camera;
 
-    // 3. WebGL Renderer with High Fidelity Shadows & Tone Mapping
+    // 3. WebGL Renderer with High-Fidelity Shadows & Tone Mapping
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.18;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 4. Orbit Controls (360 orbit, smooth zoom, pan)
+    // 4. Orbit Controls (Wide zoom range, smooth damping, 360 orbit)
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 8;
-    controls.maxDistance = 90;
-    controls.maxPolarAngle = Math.PI / 2.05; // Never go below ground
-    controls.target.set(0, 2, 0);
+    controls.minDistance = 12;
+    controls.maxDistance = 240;
+    controls.maxPolarAngle = Math.PI / 2.05;
+    controls.target.set(0, 2.5, -2.0);
     controlsRef.current = controls;
 
-    // 5. Lighting Setup
-    // Hemispherical Ambient Sky Light
-    const hemiLight = new THREE.HemisphereLight('#93C5FD', '#1E293B', 0.75);
+    // 5. High-Quality Lighting Setup
+    const hemiLight = new THREE.HemisphereLight('#E0F2FE', '#334155', 1.15);
     scene.add(hemiLight);
 
-    // Directional Sun Light (Shadow Caster)
-    const sunLight = new THREE.DirectionalLight('#FFFBEB', 2.2);
-    sunLight.position.set(30, 40, 20);
+    const ambientLight = new THREE.AmbientLight('#FFFFFF', 0.5);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight('#FFFDF0', 2.8);
+    sunLight.position.set(-30, 50, 30);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
     sunLight.shadow.camera.near = 1.0;
-    sunLight.shadow.camera.far = 120;
-    sunLight.shadow.camera.left = -35;
-    sunLight.shadow.camera.right = 35;
-    sunLight.shadow.camera.top = 35;
-    sunLight.shadow.camera.bottom = -35;
-    sunLight.shadow.bias = -0.0003;
+    sunLight.shadow.camera.far = 180;
+    sunLight.shadow.camera.left = -55;
+    sunLight.shadow.camera.right = 55;
+    sunLight.shadow.camera.top = 55;
+    sunLight.shadow.camera.bottom = -55;
+    sunLight.shadow.bias = -0.0002;
     scene.add(sunLight);
 
-    // Sun Visual Orb
     const sunMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(2.0, 24, 24),
-      new THREE.MeshBasicMaterial({ color: '#FBBF24' })
+      new THREE.SphereGeometry(2.8, 24, 24),
+      new THREE.MeshBasicMaterial({ color: '#FDE047' })
     );
+    sunMesh.position.set(-30, 50, 30);
     scene.add(sunMesh);
 
-    // Moon Visual & Light for Night
-    const moonLight = new THREE.DirectionalLight('#93C5FD', 0.4);
-    moonLight.position.set(-25, 30, -20);
+    const moonLight = new THREE.DirectionalLight('#93C5FD', 0.0);
+    moonLight.position.set(30, 40, -30);
     scene.add(moonLight);
 
     const moonMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(1.4, 16, 16),
+      new THREE.SphereGeometry(1.8, 16, 16),
       new THREE.MeshBasicMaterial({ color: '#E2E8F0' })
     );
+    moonMesh.position.set(30, 40, -30);
+    moonMesh.visible = false;
     scene.add(moonMesh);
 
     // =========================================================================
-    // 6. EXPANSIVE CAMPUS TERRAIN, ROADS, AND TREES
+    // 6. EXPANSIVE LANDSCAPE TERRAIN, ROADS & LUSH TREES (Bám sát demo.png)
     // =========================================================================
     const campusGroup = new THREE.Group();
     scene.add(campusGroup);
 
-    // 6.1. Grass Ground Plane (120 x 120)
-    const groundGeo = new THREE.PlaneGeometry(140, 140, 16, 16);
+    // 6.1. Vibrant Green Lawn Ground (280 x 280)
+    const groundGeo = new THREE.PlaneGeometry(280, 280, 32, 32);
     const groundMat = new THREE.MeshStandardMaterial({
-      color: '#133E26',
+      color: '#346B31',
       roughness: 0.85,
       metalness: 0.05,
     });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    campusGroup.add(ground);
+    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.receiveShadow = true;
+    campusGroup.add(groundMesh);
 
-    // 6.2. Campus Asphalt Road Network
-    // Main Avenue (runs along Z axis)
-    const roadMat = new THREE.MeshStandardMaterial({ color: '#1E2530', roughness: 0.8 });
-    const lineYellowMat = new THREE.MeshBasicMaterial({ color: '#FBBF24' });
-    const lineWhiteMat = new THREE.MeshBasicMaterial({ color: '#E2E8F0' });
+    // Distant Rolling Hills Horizon
+    const hillMat = new THREE.MeshStandardMaterial({ color: '#254E25', roughness: 0.95 });
+    for (let h = 0; h < 16; h++) {
+      const angle = (h / 16) * Math.PI * 2;
+      const dist = 115 + (h % 3) * 12;
+      const radius = 22 + (h % 4) * 8;
+      const hill = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 8), hillMat);
+      hill.scale.set(1.6, 0.45, 1.2);
+      hill.position.set(Math.cos(angle) * dist, -3, Math.sin(angle) * dist);
+      campusGroup.add(hill);
+    }
 
-    const mainRoad = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 70), roadMat);
-    mainRoad.rotation.x = -Math.PI / 2;
-    mainRoad.position.set(7.5, 0.02, 0);
+    // 6.2. Campus Asphalt Road Network with Yellow & White Markings
+    const roadMat = new THREE.MeshStandardMaterial({ color: '#1E232A', roughness: 0.7, metalness: 0.1 });
+    const curbMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.5 });
+    const yellowStripeMat = new THREE.MeshBasicMaterial({ color: '#FBBF24' });
+    const whiteStripeMat = new THREE.MeshBasicMaterial({ color: '#F8FAFC' });
+
+    // Main East-West Thoroughfare
+    const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(84, 0.08, 7.0), roadMat);
+    mainRoad.position.set(0, 0.04, 8.0);
     mainRoad.receiveShadow = true;
     campusGroup.add(mainRoad);
 
-    // Dashed Yellow Center Line
-    for (let z = -32; z < 32; z += 3.5) {
-      const stripe = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 2.0), lineYellowMat);
-      stripe.rotation.x = -Math.PI / 2;
-      stripe.position.set(7.5, 0.03, z);
-      campusGroup.add(stripe);
+    // Curbs along main road
+    const curbNorth = new THREE.Mesh(new THREE.BoxGeometry(84, 0.16, 0.35), curbMat);
+    curbNorth.position.set(0, 0.08, 4.3);
+    const curbSouth = new THREE.Mesh(new THREE.BoxGeometry(84, 0.16, 0.35), curbMat);
+    curbSouth.position.set(0, 0.08, 11.7);
+    campusGroup.add(curbNorth, curbSouth);
+
+    // Yellow Dashed Centerlines along Main Road
+    for (let c = -38; c <= 38; c += 3.4) {
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.01, 0.2), yellowStripeMat);
+      dash.position.set(c, 0.09, 8.0);
+      campusGroup.add(dash);
     }
 
-    // Cross Road (runs along X axis toward BESS & Solar)
-    const crossRoad = new THREE.Mesh(new THREE.PlaneGeometry(40, 6.0), roadMat);
-    crossRoad.rotation.x = -Math.PI / 2;
-    crossRoad.position.set(-8.0, 0.025, 12.0);
-    crossRoad.receiveShadow = true;
-    campusGroup.add(crossRoad);
+    // Solid White Edge Lines
+    const edgeNorth = new THREE.Mesh(new THREE.BoxGeometry(82, 0.01, 0.14), whiteStripeMat);
+    edgeNorth.position.set(0, 0.09, 4.8);
+    const edgeSouth = new THREE.Mesh(new THREE.BoxGeometry(82, 0.01, 0.14), whiteStripeMat);
+    edgeSouth.position.set(0, 0.09, 11.2);
+    campusGroup.add(edgeNorth, edgeSouth);
 
-    // White Stop Line
-    const stopLine = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.4), lineWhiteMat);
-    stopLine.rotation.x = -Math.PI / 2;
-    stopLine.position.set(5.5, 0.035, 9.0);
-    campusGroup.add(stopLine);
+    // North-South Branch Road towards House & Parking Apron
+    const branchRoad = new THREE.Mesh(new THREE.BoxGeometry(7.0, 0.08, 15), roadMat);
+    branchRoad.position.set(6.5, 0.04, -0.5);
+    branchRoad.receiveShadow = true;
+    campusGroup.add(branchRoad);
 
-    // Concrete Sidewalks & Curbs
-    const sidewalkMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.7 });
-    const walk1 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 68), sidewalkMat);
-    walk1.position.set(11.8, 0.08, 0);
-    walk1.receiveShadow = true;
-    campusGroup.add(walk1);
+    // Parking Bay in front of Building
+    const parkingApron = new THREE.Mesh(new THREE.BoxGeometry(18, 0.07, 9.0), roadMat);
+    parkingApron.position.set(13.5, 0.035, -2.5);
+    parkingApron.receiveShadow = true;
+    campusGroup.add(parkingApron);
 
-    const walk2 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 68), sidewalkMat);
-    walk2.position.set(3.2, 0.08, -6);
-    walk2.receiveShadow = true;
-    campusGroup.add(walk2);
+    // Parking Stall White Striping
+    for (let p = 7.5; p <= 19.5; p += 3.0) {
+      const pLine = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.01, 4.6), whiteStripeMat);
+      pLine.position.set(p, 0.08, -2.5);
+      campusGroup.add(pLine);
+    }
 
-    // 6.3. PROCEDURAL TREES & FOLIAGE AROUND CAMPUS ("Cây cối xung quanh")
-    const treeGroup = new THREE.Group();
-    campusGroup.add(treeGroup);
+    // 6.3. 3D Parked Vehicles on Campus (matching demo.png)
+    const createCar = (x, z, rotY, bodyColor) => {
+      const car = new THREE.Group();
+      car.position.set(x, 0, z);
+      car.rotation.y = rotY;
 
-    const trunkMat = new THREE.MeshStandardMaterial({ color: '#3B2314', roughness: 0.9 });
-    const leafMats = [
-      new THREE.MeshStandardMaterial({ color: '#15803D', roughness: 0.7 }),
-      new THREE.MeshStandardMaterial({ color: '#16A34A', roughness: 0.7 }),
-      new THREE.MeshStandardMaterial({ color: '#22C55E', roughness: 0.65 }),
-      new THREE.MeshStandardMaterial({ color: '#047857', roughness: 0.75 }),
-      new THREE.MeshStandardMaterial({ color: '#0F5132', roughness: 0.8 }),
-    ];
+      const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, metalness: 0.65, roughness: 0.2 });
+      const lowerBody = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.58, 4.0), bodyMat);
+      lowerBody.position.y = 0.52;
+      lowerBody.castShadow = true;
+      car.add(lowerBody);
 
-    // Helper: Create Round Deciduous Tree
-    const createShadeTree = (x, z, scale = 1.0) => {
-      const tree = new THREE.Group();
-      // Trunk
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * scale, 0.32 * scale, 2.2 * scale, 8), trunkMat);
-      trunk.position.y = 1.1 * scale;
-      trunk.castShadow = true;
-      trunk.receiveShadow = true;
-      tree.add(trunk);
+      const cabinMat = new THREE.MeshStandardMaterial({ color: '#0F172A', roughness: 0.1, metalness: 0.8 });
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.52, 2.3), cabinMat);
+      cabin.position.set(0, 1.0, -0.2);
+      cabin.castShadow = true;
+      car.add(cabin);
 
-      // Layered Canopy
-      const mat = leafMats[Math.floor(Math.random() * leafMats.length)];
-      const crown1 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4 * scale, 1), mat);
-      crown1.position.y = 2.7 * scale;
-      crown1.castShadow = true;
-      tree.add(crown1);
+      const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.24, 12);
+      const wheelMat = new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.9 });
+      wheelGeo.rotateZ(Math.PI / 2);
 
-      const crown2 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.1 * scale, 1), mat);
-      crown2.position.set(0.3 * scale, 3.4 * scale, 0.2 * scale);
-      crown2.castShadow = true;
-      tree.add(crown2);
+      const wFL = new THREE.Mesh(wheelGeo, wheelMat);
+      wFL.position.set(1.0, 0.3, 1.2);
+      const wFR = new THREE.Mesh(wheelGeo, wheelMat);
+      wFR.position.set(-1.0, 0.3, 1.2);
+      const wBL = new THREE.Mesh(wheelGeo, wheelMat);
+      wBL.position.set(1.0, 0.3, -1.2);
+      const wBR = new THREE.Mesh(wheelGeo, wheelMat);
+      wBR.position.set(-1.0, 0.3, -1.2);
+      car.add(wFL, wFR, wBL, wBR);
 
-      tree.position.set(x, 0, z);
-      treeGroup.add(tree);
+      campusGroup.add(car);
     };
 
-    // Helper: Create Pine / Conifer Tree
-    const createPineTree = (x, z, scale = 1.0) => {
+    createCar(9.0, -2.2, 0, '#DC2626');
+    createCar(15.0, -2.2, 0, '#F8FAFC');
+    createCar(-3.2, 5.2, Math.PI / 2, '#2563EB');
+
+    // 6.4. ABUNDANT PROCEDURAL TREES & SHRUBS ("Cây cối xung quanh" bám sát demo.png)
+    const treeTrunkMat = new THREE.MeshStandardMaterial({ color: '#4A2F13', roughness: 0.85 });
+    const greenShades = ['#2D7A32', '#388E3C', '#43A047', '#2E7D32', '#1B5E20', '#4CAF50'];
+
+    const createShadeTree = (x, z, scale = 1.0, colorIdx = 0) => {
       const tree = new THREE.Group();
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * scale, 0.28 * scale, 1.8 * scale, 8), trunkMat);
-      trunk.position.y = 0.9 * scale;
+      tree.position.set(x, 0, z);
+
+      const trunkH = 2.5 * scale;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24 * scale, 0.38 * scale, trunkH, 8),
+        treeTrunkMat
+      );
+      trunk.position.y = trunkH / 2;
       trunk.castShadow = true;
       tree.add(trunk);
 
-      const pineMat = leafMats[4];
-      for (let i = 0; i < 3; i++) {
+      const leafColor = greenShades[colorIdx % greenShades.length];
+      const leafMat = new THREE.MeshStandardMaterial({
+        color: leafColor,
+        roughness: 0.75,
+        flatShading: true,
+      });
+
+      const c1 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.8 * scale, 1), leafMat);
+      c1.position.y = trunkH + 0.7 * scale;
+      c1.castShadow = true;
+
+      const c2 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4 * scale, 1), leafMat);
+      c2.position.set(0.35 * scale, trunkH + 1.5 * scale, -0.25 * scale);
+      c2.castShadow = true;
+
+      const c3 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15 * scale, 1), leafMat);
+      c3.position.set(-0.25 * scale, trunkH + 2.1 * scale, 0.25 * scale);
+      c3.castShadow = true;
+
+      tree.add(c1, c2, c3);
+      campusGroup.add(tree);
+    };
+
+    const createPineTree = (x, z, scale = 1.0) => {
+      const pine = new THREE.Group();
+      pine.position.set(x, 0, z);
+
+      const trunkH = 1.6 * scale;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2 * scale, 0.3 * scale, trunkH, 8),
+        treeTrunkMat
+      );
+      trunk.position.y = trunkH / 2;
+      trunk.castShadow = true;
+      pine.add(trunk);
+
+      const pineMat = new THREE.MeshStandardMaterial({ color: '#1B4D24', roughness: 0.8, flatShading: true });
+      for (let t = 0; t < 3; t++) {
         const cone = new THREE.Mesh(
-          new THREE.ConeGeometry((1.5 - i * 0.3) * scale, 1.6 * scale, 8),
+          new THREE.ConeGeometry((1.8 - t * 0.38) * scale, 2.0 * scale, 8),
           pineMat
         );
-        cone.position.y = (2.0 + i * 1.1) * scale;
+        cone.position.y = trunkH + (t * 1.0 + 0.6) * scale;
         cone.castShadow = true;
-        tree.add(cone);
+        pine.add(cone);
       }
-      tree.position.set(x, 0, z);
-      treeGroup.add(tree);
+      campusGroup.add(pine);
     };
 
-    // Plant trees along road, perimeter, behind solar array, and around building
-    // 1. Perimeter avenue trees (right border)
-    for (let z = -28; z <= 28; z += 5.5) {
-      createShadeTree(14.5 + (Math.sin(z) * 0.8), z, 0.95 + Math.random() * 0.3);
-      if (Math.abs(z) % 2 === 0) {
-        createPineTree(17.5, z + 2.5, 1.1);
-      }
-    }
+    const createHedge = (x, z, sx = 1.0, sz = 1.0) => {
+      const hedgeMat = new THREE.MeshStandardMaterial({ color: '#2E7D32', roughness: 0.8 });
+      const hedge = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.65, sz), hedgeMat);
+      hedge.position.set(x, 0.32, z);
+      hedge.castShadow = true;
+      campusGroup.add(hedge);
+    };
 
-    // 2. Trees behind and around Solar PV Farm (left & back)
-    for (let x = -28; x <= -6; x += 4.5) {
-      createShadeTree(x, -24 + Math.cos(x) * 1.5, 1.1 + Math.random() * 0.25);
-      createPineTree(x + 2.0, -28, 1.2);
-    }
-    for (let z = -20; z <= 8; z += 5.0) {
-      createPineTree(-28, z, 1.15 + Math.random() * 0.3);
-    }
+    // Plant lush trees matching demo.png
+    createShadeTree(8, -14, 1.35, 0);
+    createShadeTree(-8, -15, 1.4, 1);
+    createShadeTree(-3, -17, 1.5, 2);
+    createShadeTree(3, -18, 1.3, 3);
+    createShadeTree(-11, -12, 1.2, 4);
+    createShadeTree(12, -11, 1.25, 1);
+    createPineTree(15, -16, 1.4);
+    createPineTree(-13, -17, 1.35);
 
-    // 3. Landscape trees in front garden of building & courtyard
-    createShadeTree(1.5, 9.5, 0.85);
-    createShadeTree(-2.5, 9.2, 0.9);
-    createShadeTree(-10.5, 5.5, 0.8);
-    createShadeTree(-5.5, 5.0, 0.75);
-    createShadeTree(3.5, 18.0, 1.0);
-    createPineTree(-14.0, 16.0, 1.0);
-    createShadeTree(-18.0, 16.5, 1.1);
+    createShadeTree(-12, 0, 1.25, 0);
+    createShadeTree(-12, 4, 1.2, 2);
+    createShadeTree(-13, -5, 1.35, 3);
+    createPineTree(-11, 9, 1.2);
+    createPineTree(-13, 11, 1.25);
+
+    createShadeTree(-20, 13, 1.3, 4);
+    createShadeTree(-25, 13, 1.35, 1);
+    createShadeTree(-29, 12, 1.25, 0);
+    createPineTree(-33, 11, 1.35);
+    createPineTree(-35, 7, 1.3);
+
+    createPineTree(-30, -15, 1.45);
+    createPineTree(-25, -16, 1.4);
+    createPineTree(-20, -16, 1.35);
+    createShadeTree(-17, -15, 1.25, 2);
+
+    createShadeTree(16, 13, 1.25, 0);
+    createShadeTree(21, 13, 1.35, 1);
+    createShadeTree(26, 13, 1.3, 2);
+    createPineTree(23, 7, 1.25);
+    createPineTree(26, 3, 1.35);
+    createPineTree(27, -4, 1.4);
+    createShadeTree(24, -12, 1.25, 3);
+    createShadeTree(19, -15, 1.35, 4);
+
+    createShadeTree(-6, 13, 1.15, 1);
+    createShadeTree(1, 13.5, 1.25, 3);
+    createShadeTree(8, 13, 1.2, 0);
+
+    createHedge(-3.2, 1.0, 3.5, 0.65);
+    createHedge(1.8, 1.0, 4.2, 0.65);
+    createHedge(-7.0, 1.2, 0.65, 2.8);
 
     // =========================================================================
-    // 7. GROUND-MOUNTED COMMERCIAL SOLAR PV FARM (150 kWp)
+    // 7. GROUND/CANOPY COMMERCIAL SOLAR PV FARM (150 kWp) ON LEFT
     // =========================================================================
-    const pvFarmGroup = new THREE.Group();
-    pvFarmGroup.position.set(-16.0, 0, -8.0);
-    campusGroup.add(pvFarmGroup);
+    const solarFarmGroup = new THREE.Group();
+    solarFarmGroup.position.set(-22.0, 0, -3.5);
+    campusGroup.add(solarFarmGroup);
 
-    // Concrete mounting pad for solar farm
     const solarPad = new THREE.Mesh(
-      new THREE.BoxGeometry(22, 0.25, 20),
-      new THREE.MeshStandardMaterial({ color: '#1E293B', roughness: 0.85 })
+      new THREE.BoxGeometry(24, 0.12, 20),
+      new THREE.MeshStandardMaterial({ color: '#57534E', roughness: 0.9 })
     );
-    solarPad.position.set(0, 0.125, 0);
+    solarPad.position.set(0, 0.06, 0);
     solarPad.receiveShadow = true;
-    pvFarmGroup.add(solarPad);
+    solarFarmGroup.add(solarPad);
 
-    // PV Module Material (High-tech Blue Silicon with Metallic Sheen)
-    const pvSiliconMat = new THREE.MeshStandardMaterial({
-      color: '#0F2756',
-      roughness: 0.15,
-      metalness: 0.85,
-      emissive: '#F59E0B',
-      emissiveIntensity: 0.1,
+    const pvRackMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', metalness: 0.85, roughness: 0.25 });
+    const pvCellMat = new THREE.MeshStandardMaterial({
+      color: '#1E3A8A',
+      metalness: 0.75,
+      roughness: 0.12,
     });
-    const pvRackMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', metalness: 0.8, roughness: 0.3 });
+    const pvFrameMat = new THREE.MeshStandardMaterial({ color: '#CBD5E1', metalness: 0.9, roughness: 0.2 });
 
-    // 4 Long Rows of Ground Mount Arrays, tilted 25 degrees toward South
-    for (let row = 0; row < 4; row++) {
-      const zRow = -6.5 + row * 4.4;
-      const rackGroup = new THREE.Group();
-      rackGroup.position.set(0, 0, zRow);
+    const rowZPositions = [-6.5, -2.2, 2.2, 6.5];
+    rowZPositions.forEach((rz) => {
+      const rowGroup = new THREE.Group();
+      rowGroup.position.set(0, 0, rz);
 
-      // Aluminum Support Legs
-      for (let legX = -8; legX <= 8; legX += 4) {
-        const legFront = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 8), pvRackMat);
-        legFront.position.set(legX, 0.4, 0.9);
-        const legBack = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.8, 8), pvRackMat);
-        legBack.position.set(legX, 0.9, -0.9);
-        rackGroup.add(legFront, legBack);
+      for (let st = -9.0; st <= 9.0; st += 3.6) {
+        const postFront = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2), pvRackMat);
+        postFront.position.set(st, 0.6, 1.15);
+        postFront.castShadow = true;
+
+        const postBack = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.1), pvRackMat);
+        postBack.position.set(st, 1.05, -1.15);
+        postBack.castShadow = true;
+
+        const diagBeam = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 2.7), pvRackMat);
+        diagBeam.position.set(st, 1.25, 0);
+        diagBeam.rotation.x = Math.PI / 8.5;
+        diagBeam.castShadow = true;
+
+        rowGroup.add(postFront, postBack, diagBeam);
       }
 
-      // PV Solar Panels Row (10 modules per row = 40 commercial modules)
-      for (let col = 0; col < 9; col++) {
-        const xCol = -8.0 + col * 2.0;
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.04, 2.1), pvSiliconMat);
-        panel.position.set(xCol, 1.15, 0);
-        panel.rotation.x = Math.PI / 7.5; // ~24 deg tilt
-        panel.castShadow = true;
-        panel.receiveShadow = true;
-        rackGroup.add(panel);
-        animObjectsRef.current.pvPanels.push(panel);
-      }
-      pvFarmGroup.add(rackGroup);
-    }
+      const purlin1 = new THREE.Mesh(new THREE.BoxGeometry(21.0, 0.06, 0.06), pvRackMat);
+      purlin1.position.set(0, 1.05, 0.7);
+      const purlin2 = new THREE.Mesh(new THREE.BoxGeometry(21.0, 0.06, 0.06), pvRackMat);
+      purlin2.position.set(0, 1.55, -0.7);
+      rowGroup.add(purlin1, purlin2);
 
-    // Solar Farm Inverter Box & Transformer
-    const farmInv = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 1.8, 0.9),
-      new THREE.MeshStandardMaterial({ color: '#0F172A', metalness: 0.7, roughness: 0.3 })
+      for (let m = 0; m < 11; m++) {
+        const mx = -8.8 + m * 1.76;
+        const panelGroup = new THREE.Group();
+        panelGroup.position.set(mx, 1.28, 0);
+        panelGroup.rotation.x = Math.PI / 8.5;
+
+        const frame = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.04, 2.25), pvFrameMat);
+        frame.castShadow = true;
+        const cell = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.045, 2.18), pvCellMat);
+        cell.castShadow = true;
+
+        panelGroup.add(frame, cell);
+        rowGroup.add(panelGroup);
+        animObjectsRef.current.pvPanels.push(cell);
+      }
+
+      solarFarmGroup.add(rowGroup);
+    });
+
+    const farmInverter = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 1.6, 1.1),
+      new THREE.MeshStandardMaterial({ color: '#E2E8F0', metalness: 0.4, roughness: 0.4 })
     );
-    farmInv.position.set(9.5, 0.9, 0);
-    farmInv.castShadow = true;
-    pvFarmGroup.add(farmInv);
+    farmInverter.position.set(10.0, 0.9, 0);
+    farmInverter.castShadow = true;
+    solarFarmGroup.add(farmInverter);
 
     // =========================================================================
-    // 8. MODERN COMMERCIAL SMART BUILDING (PHỤ TẢI TÒA NHÀ - 80.6 kW)
+    // 8. MODERN ARCHITECTURAL SMART CAMPUS BUILDING (BÁM SÁT demo.png)
     // =========================================================================
     const buildingGroup = new THREE.Group();
-    buildingGroup.position.set(0, 0, -6.0);
+    buildingGroup.position.set(-0.5, 0, -4.8);
     campusGroup.add(buildingGroup);
 
-    // Concrete Building Foundation / Plaza
     const bldgPlaza = new THREE.Mesh(
-      new THREE.BoxGeometry(18, 0.3, 16),
-      new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.7 })
+      new THREE.BoxGeometry(24, 0.25, 20),
+      new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.6 })
     );
-    bldgPlaza.position.set(0, 0.15, 0);
+    bldgPlaza.position.set(0, 0.125, 0);
     bldgPlaza.receiveShadow = true;
     buildingGroup.add(bldgPlaza);
 
-    // Materials
-    const wallGreyMat = new THREE.MeshStandardMaterial({ color: '#1E293B', roughness: 0.5 });
-    const wallAccentMat = new THREE.MeshStandardMaterial({ color: '#0F172A', roughness: 0.3, metalness: 0.5 });
-    const glassFacadeMat = new THREE.MeshPhysicalMaterial({
+    const walkway = new THREE.Mesh(
+      new THREE.BoxGeometry(5.0, 0.15, 7.0),
+      new THREE.MeshStandardMaterial({ color: '#CBD5E1', roughness: 0.5 })
+    );
+    walkway.position.set(-1.0, 0.1, 9.5);
+    walkway.receiveShadow = true;
+    buildingGroup.add(walkway);
+
+    const ivoryWallMat = new THREE.MeshStandardMaterial({
+      color: '#EFECE6',
+      roughness: 0.45,
+      metalness: 0.05,
+    });
+    const trimDarkMat = new THREE.MeshStandardMaterial({
+      color: '#262E3B',
+      roughness: 0.35,
+      metalness: 0.3,
+    });
+    const glassCurtainMat = new THREE.MeshPhysicalMaterial({
       color: '#38BDF8',
-      transmission: 0.8,
-      opacity: 0.85,
+      transmission: 0.82,
+      opacity: 0.9,
       transparent: true,
       roughness: 0.08,
-      ior: 1.5,
-      reflectivity: 0.9,
+      ior: 1.52,
+      reflectivity: 0.95,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
     });
 
-    // 2-Story Modern Main Building Block
-    const mainBlock = new THREE.Mesh(new THREE.BoxGeometry(12, 6.2, 10), wallGreyMat);
-    mainBlock.position.set(-1.0, 3.25, 0);
-    mainBlock.castShadow = true;
-    mainBlock.receiveShadow = true;
-    buildingGroup.add(mainBlock);
+    // Ground Floor
+    const groundFloor = new THREE.Mesh(new THREE.BoxGeometry(16, 4.0, 13), ivoryWallMat);
+    groundFloor.position.set(-0.5, 2.1, 0);
+    groundFloor.castShadow = true;
+    groundFloor.receiveShadow = true;
+    buildingGroup.add(groundFloor);
 
-    // Glass Curtain Wall Facade (Facing front & south)
-    const glassFacade = new THREE.Mesh(new THREE.BoxGeometry(10.5, 5.0, 0.2), glassFacadeMat);
-    glassFacade.position.set(-1.0, 3.25, 5.1);
-    buildingGroup.add(glassFacade);
+    const groundGlassFront = new THREE.Mesh(new THREE.BoxGeometry(14.0, 2.8, 0.2), glassCurtainMat);
+    groundGlassFront.position.set(-0.5, 2.1, 6.55);
+    buildingGroup.add(groundGlassFront);
 
-    // Entrance Portico & Glass Doors
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.2, 2.5), wallAccentMat);
-    canopy.position.set(-1.0, 3.0, 6.2);
-    canopy.castShadow = true;
-    buildingGroup.add(canopy);
+    const winTrim1 = new THREE.Mesh(new THREE.BoxGeometry(14.3, 0.14, 0.28), trimDarkMat);
+    winTrim1.position.set(-0.5, 2.1, 6.6);
+    buildingGroup.add(winTrim1);
 
-    const canopyPillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.0), pvRackMat);
-    canopyPillar1.position.set(0.8, 1.5, 7.2);
-    const canopyPillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.0), pvRackMat);
-    canopyPillar2.position.set(-2.8, 1.5, 7.2);
-    buildingGroup.add(canopyPillar1, canopyPillar2);
+    // Second Floor
+    const secondFloor = new THREE.Mesh(new THREE.BoxGeometry(17.5, 3.6, 12), ivoryWallMat);
+    secondFloor.position.set(-0.2, 5.9, -0.5);
+    secondFloor.castShadow = true;
+    secondFloor.receiveShadow = true;
+    buildingGroup.add(secondFloor);
 
-    // Rooftop HVAC & Parapet
-    const parapet = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.6, 10.4), wallAccentMat);
-    parapet.position.set(-1.0, 6.4, 0);
-    buildingGroup.add(parapet);
+    const secondGlassFront = new THREE.Mesh(new THREE.BoxGeometry(15.5, 2.4, 0.2), glassCurtainMat);
+    secondGlassFront.position.set(-0.2, 5.9, 5.55);
+    buildingGroup.add(secondGlassFront);
 
-    const hvacUnit1 = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.6), pvRackMat);
-    hvacUnit1.position.set(-3.5, 7.0, -1.5);
-    hvacUnit1.castShadow = true;
-    const hvacUnit2 = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 1.4), pvRackMat);
-    hvacUnit2.position.set(1.5, 6.9, 1.2);
-    buildingGroup.add(hvacUnit1, hvacUnit2);
+    const floorBand = new THREE.Mesh(new THREE.BoxGeometry(17.9, 0.4, 12.4), trimDarkMat);
+    floorBand.position.set(-0.2, 4.0, -0.5);
+    floorBand.castShadow = true;
+    buildingGroup.add(floorBand);
 
-    // Rooftop PV Solar array on Building
-    for (let c = 0; c < 4; c++) {
-      const roofPanel = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 1.4), pvSiliconMat);
-      roofPanel.position.set(-3.0 + c * 2.0, 6.6, 1.5);
-      roofPanel.rotation.x = Math.PI / 10;
-      roofPanel.castShadow = true;
-      buildingGroup.add(roofPanel);
-      animObjectsRef.current.pvPanels.push(roofPanel);
-    }
+    // Entrance Portico
+    const entranceCanopy = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.28, 3.5), trimDarkMat);
+    entranceCanopy.position.set(-1.0, 3.8, 7.5);
+    entranceCanopy.castShadow = true;
+    buildingGroup.add(entranceCanopy);
 
-    // Warm Interior Lights for Windows (Active at Night)
-    const intLight1 = new THREE.PointLight('#FBBF24', 0, 10);
-    intLight1.position.set(-1.0, 2.2, 2.0);
-    const intLight2 = new THREE.PointLight('#60A5FA', 0, 10);
-    intLight2.position.set(-1.0, 4.8, 2.0);
-    buildingGroup.add(intLight1, intLight2);
-    animObjectsRef.current.windowLights = [intLight1, intLight2];
+    const pillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.8), pvRackMat);
+    pillar1.position.set(1.4, 1.9, 9.0);
+    const pillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.8), pvRackMat);
+    pillar2.position.set(-3.4, 1.9, 9.0);
+    buildingGroup.add(pillar1, pillar2);
+
+    // Rooftop Parapet
+    const roofParapet = new THREE.Mesh(new THREE.BoxGeometry(17.8, 0.6, 12.3), trimDarkMat);
+    roofParapet.position.set(-0.2, 8.0, -0.5);
+    roofParapet.castShadow = true;
+    buildingGroup.add(roofParapet);
+
+    const hvacUnitA = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.4, 1.8), pvRackMat);
+    hvacUnitA.position.set(5.5, 8.6, -2.8);
+    hvacUnitA.castShadow = true;
+    const hvacUnitB = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.5), pvRackMat);
+    hvacUnitB.position.set(5.5, 8.5, 1.8);
+    hvacUnitB.castShadow = true;
+    buildingGroup.add(hvacUnitA, hvacUnitB);
+
+    const roofPenthouse = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.2, 2.8), ivoryWallMat);
+    roofPenthouse.position.set(-6.0, 8.8, -1.2);
+    roofPenthouse.castShadow = true;
+    buildingGroup.add(roofPenthouse);
+
+    // ROOFTOP SOLAR PV ARRAYS ("để pin trên nóc nhà")
+    const roofPvRows = [-3.5, 0.0, 3.5];
+    roofPvRows.forEach((rpz) => {
+      for (let rx = 0; rx < 5; rx++) {
+        const rpx = -4.0 + rx * 2.1;
+        const roofPanel = new THREE.Group();
+        roofPanel.position.set(rpx, 8.2, rpz);
+        roofPanel.rotation.x = Math.PI / 9.0;
+
+        const rFrame = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.05, 1.4), pvFrameMat);
+        rFrame.castShadow = true;
+        const rCell = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.055, 1.32), pvCellMat);
+        rCell.castShadow = true;
+
+        roofPanel.add(rFrame, rCell);
+        buildingGroup.add(roofPanel);
+        animObjectsRef.current.pvPanels.push(rCell);
+      }
+    });
+
+    const intLightA = new THREE.PointLight('#FBBF24', 0.6, 14);
+    intLightA.position.set(-0.5, 2.3, 3.2);
+    const intLightB = new THREE.PointLight('#60A5FA', 0.6, 14);
+    intLightB.position.set(-0.5, 6.0, 3.2);
+    buildingGroup.add(intLightA, intLightB);
+    animObjectsRef.current.windowLights = [intLightA, intLightB];
 
     // =========================================================================
     // 9. INDUSTRIAL CONTAINERIZED BESS STATION (200 kWh / 50 kW)
     // =========================================================================
     const bessGroup = new THREE.Group();
-    bessGroup.position.set(-7.5, 0, 5.5);
+    bessGroup.position.set(-6.8, 0, 5.0);
     campusGroup.add(bessGroup);
 
-    // BESS Concrete Foundation Pad
     const bessPad = new THREE.Mesh(
-      new THREE.BoxGeometry(7.5, 0.35, 4.5),
-      new THREE.MeshStandardMaterial({ color: '#334155' })
+      new THREE.BoxGeometry(5.6, 0.2, 3.6),
+      new THREE.MeshStandardMaterial({ color: '#64748B', roughness: 0.7 })
     );
-    bessPad.position.set(0, 0.175, 0);
+    bessPad.position.set(0, 0.1, 0);
     bessPad.receiveShadow = true;
     bessGroup.add(bessPad);
 
-    // Industrial Container Body (Tesla Megapack / Fluence Cube style)
-    const containerMat = new THREE.MeshStandardMaterial({
-      color: '#0B3B2B',
+    const bessBodyMat = new THREE.MeshStandardMaterial({
+      color: '#059669',
       roughness: 0.35,
-      metalness: 0.65,
+      metalness: 0.2,
     });
-    const bessContainer = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.8, 3.2), containerMat);
-    bessContainer.position.set(0, 1.6, 0);
-    bessContainer.castShadow = true;
-    bessContainer.receiveShadow = true;
-    bessGroup.add(bessContainer);
+    const bessWhiteMat = new THREE.MeshStandardMaterial({
+      color: '#F8FAFC',
+      roughness: 0.3,
+      metalness: 0.1,
+    });
 
-    // Container Roof HVAC Chiller Units
-    const chiller = new THREE.Mesh(
-      new THREE.BoxGeometry(4.5, 0.6, 2.2),
-      new THREE.MeshStandardMaterial({ color: '#1E293B' })
-    );
-    chiller.position.set(0, 3.2, 0);
-    bessGroup.add(chiller);
+    const bessMainBox = new THREE.Mesh(new THREE.BoxGeometry(4.6, 2.5, 2.8), bessBodyMat);
+    bessMainBox.position.set(0, 1.35, 0);
+    bessMainBox.castShadow = true;
+    bessMainBox.receiveShadow = true;
+    bessGroup.add(bessMainBox);
 
-    // Glowing LED Status Bar & SoC Level Display
-    const ledBarGeo = new THREE.BoxGeometry(5.2, 0.25, 0.1);
-    const ledBarMat = new THREE.MeshBasicMaterial({ color: '#10B981' });
-    const ledBar = new THREE.Mesh(ledBarGeo, ledBarMat);
-    ledBar.position.set(0, 2.7, 1.66);
-    bessGroup.add(ledBar);
-    animObjectsRef.current.batteryLed = ledBar;
+    const bessFrontDoor = new THREE.Mesh(new THREE.BoxGeometry(4.2, 2.2, 0.1), bessWhiteMat);
+    bessFrontDoor.position.set(0, 1.35, 1.42);
+    bessGroup.add(bessFrontDoor);
 
-    // Point Light Glow at BESS
-    const bessGlow = new THREE.PointLight('#10B981', 1.5, 8);
-    bessGlow.position.set(0, 2.2, 2.2);
-    bessGroup.add(bessGlow);
-    animObjectsRef.current.batteryGlow = bessGlow;
+    const fanChiller1 = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.48, 1.5), pvRackMat);
+    fanChiller1.position.set(-1.3, 2.85, 0);
+    fanChiller1.castShadow = true;
+    const fanChiller2 = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.48, 1.5), pvRackMat);
+    fanChiller2.position.set(1.3, 2.85, 0);
+    fanChiller2.castShadow = true;
+    bessGroup.add(fanChiller1, fanChiller2);
 
-    // High Voltage Transformer at BESS Station
-    const bessTrans = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.5, 0.5, 1.6, 16),
-      new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.8 })
-    );
-    bessTrans.position.set(2.5, 1.0, -1.8);
-    bessGroup.add(bessTrans);
+    const ledGeo = new THREE.BoxGeometry(3.8, 0.14, 0.08);
+    const ledMat = new THREE.MeshBasicMaterial({ color: '#10B981' });
+    const batteryLed = new THREE.Mesh(ledGeo, ledMat);
+    batteryLed.position.set(0, 2.35, 1.48);
+    bessGroup.add(batteryLed);
+    animObjectsRef.current.batteryLed = batteryLed;
 
     // =========================================================================
-    // 10. HIGH-VOLTAGE POWER TRANSMISSION PYLON & GRID SUBSTATION (21.2 kW)
+    // 10. HIGH-VOLTAGE TRANSMISSION PYLON & SUBSTATION (21.2 kW) ON RIGHT
     // =========================================================================
-    const gridGroup = new THREE.Group();
-    gridGroup.position.set(16.0, 0, -10.0);
-    campusGroup.add(gridGroup);
+    const pylonGroup = new THREE.Group();
+    pylonGroup.position.set(20.0, 0, -3.5);
+    campusGroup.add(pylonGroup);
 
-    // Gravel Substation Ground Pad
-    const gravelPad = new THREE.Mesh(
-      new THREE.BoxGeometry(14, 0.2, 14),
-      new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.9 })
+    const subPad = new THREE.Mesh(
+      new THREE.BoxGeometry(16, 0.15, 16),
+      new THREE.MeshStandardMaterial({ color: '#78716C', roughness: 0.9 })
     );
-    gravelPad.position.set(0, 0.1, 0);
-    gravelPad.receiveShadow = true;
-    gridGroup.add(gravelPad);
+    subPad.position.set(0, 0.075, 0);
+    subPad.receiveShadow = true;
+    pylonGroup.add(subPad);
 
-    // High-Voltage Lattice Steel Tower Pylon (Authentic Power Pylon)
-    const steelMat = new THREE.MeshStandardMaterial({ color: '#CBD5E1', metalness: 0.9, roughness: 0.2 });
+    const fenceMat = new THREE.MeshStandardMaterial({ color: '#64748B', wireframe: true });
+    const fenceNorth = new THREE.Mesh(new THREE.PlaneGeometry(15.8, 2.4), fenceMat);
+    fenceNorth.position.set(0, 1.2, -7.8);
+    const fenceSouth = new THREE.Mesh(new THREE.PlaneGeometry(15.8, 2.4), fenceMat);
+    fenceSouth.position.set(0, 1.2, 7.8);
+    const fenceWest = new THREE.Mesh(new THREE.PlaneGeometry(15.8, 2.4), fenceMat);
+    fenceWest.position.set(-7.8, 1.2, 0);
+    fenceWest.rotation.y = Math.PI / 2;
+    pylonGroup.add(fenceNorth, fenceSouth, fenceWest);
 
-    const createLatticePylon = () => {
-      const pylon = new THREE.Group();
-      // 4 Main corner legs tapering to top
-      const legGeo = new THREE.CylinderGeometry(0.08, 0.14, 18, 8);
-      const l1 = new THREE.Mesh(legGeo, steelMat);
-      l1.position.set(-1.2, 9, -1.2);
-      l1.rotation.z = -0.05;
-      l1.rotation.x = 0.05;
-      const l2 = new THREE.Mesh(legGeo, steelMat);
-      l2.position.set(1.2, 9, -1.2);
-      l2.rotation.z = 0.05;
-      l2.rotation.x = 0.05;
-      const l3 = new THREE.Mesh(legGeo, steelMat);
-      l3.position.set(-1.2, 9, 1.2);
-      l3.rotation.z = -0.05;
-      l3.rotation.x = -0.05;
-      const l4 = new THREE.Mesh(legGeo, steelMat);
-      l4.position.set(1.2, 9, 1.2);
-      l4.rotation.z = 0.05;
-      l4.rotation.x = -0.05;
-      pylon.add(l1, l2, l3, l4);
+    const steelMat = new THREE.MeshStandardMaterial({ color: '#CBD5E1', metalness: 0.85, roughness: 0.3 });
+    const pylonHeight = 18.0;
 
-      // Horizontal crossbars
-      for (let y = 3; y <= 16; y += 3) {
-        const w = 2.4 - (y / 18) * 1.4;
-        const bX1 = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, 0.1), steelMat);
-        bX1.position.set(0, y, w / 2);
-        const bX2 = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, 0.1), steelMat);
-        bX2.position.set(0, y, -w / 2);
-        pylon.add(bX1, bX2);
-      }
+    const legGeo = new THREE.CylinderGeometry(0.09, 0.15, pylonHeight, 6);
+    const legFL = new THREE.Mesh(legGeo, steelMat);
+    legFL.position.set(1.5, pylonHeight / 2, 1.5);
+    legFL.rotation.z = -0.05;
+    legFL.rotation.x = 0.05;
 
-      // 3 High-Voltage Crossarms
-      const arm1 = new THREE.Mesh(new THREE.BoxGeometry(8.0, 0.2, 0.2), steelMat);
-      arm1.position.set(0, 16.5, 0);
-      const arm2 = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.2, 0.2), steelMat);
-      arm2.position.set(0, 14.5, 0);
-      const arm3 = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.2, 0.2), steelMat);
-      arm3.position.set(0, 12.5, 0);
-      pylon.add(arm1, arm2, arm3);
+    const legFR = new THREE.Mesh(legGeo, steelMat);
+    legFR.position.set(-1.5, pylonHeight / 2, 1.5);
+    legFR.rotation.z = 0.05;
+    legFR.rotation.x = 0.05;
 
-      // Insulator strings (Sứ cách điện)
-      const insMat = new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.1 });
-      [-3.6, 0, 3.6].forEach((xPos) => {
-        const ins = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), insMat);
-        ins.position.set(xPos, 15.8, 0);
-        pylon.add(ins);
+    const legBL = new THREE.Mesh(legGeo, steelMat);
+    legBL.position.set(1.5, pylonHeight / 2, -1.5);
+    legBL.rotation.z = -0.05;
+    legBL.rotation.x = -0.05;
+
+    const legBR = new THREE.Mesh(legGeo, steelMat);
+    legBR.position.set(-1.5, pylonHeight / 2, -1.5);
+    legBR.rotation.z = 0.05;
+    legBR.rotation.x = -0.05;
+
+    pylonGroup.add(legFL, legFR, legBL, legBR);
+
+    [4.0, 7.5, 11.0, 14.0].forEach((ringY) => {
+      const ringScale = 1.0 - (ringY / pylonHeight) * 0.45;
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(3.2 * ringScale, 0.09, 3.2 * ringScale), steelMat);
+      ring.position.y = ringY;
+      pylonGroup.add(ring);
+    });
+
+    [11.5, 14.5, 17.0].forEach((armY, idx) => {
+      const armWidth = 8.2 - idx * 0.9;
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(armWidth, 0.2, 0.2), steelMat);
+      arm.position.y = armY;
+      arm.castShadow = true;
+      pylonGroup.add(arm);
+
+      [-armWidth / 2 + 0.25, armWidth / 2 - 0.25].forEach((ix) => {
+        const insulator = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.15, 1.0, 8),
+          new THREE.MeshPhysicalMaterial({ color: '#38BDF8', transmission: 0.7, opacity: 0.85, transparent: true })
+        );
+        insulator.position.set(ix, armY - 0.5, 0);
+        pylonGroup.add(insulator);
       });
+    });
 
-      return pylon;
-    };
+    const transBody = new THREE.Mesh(
+      new THREE.BoxGeometry(3.5, 2.4, 2.6),
+      new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.6, roughness: 0.4 })
+    );
+    transBody.position.set(-3.8, 1.3, 0);
+    transBody.castShadow = true;
+    pylonGroup.add(transBody);
 
-    gridGroup.add(createLatticePylon());
-
-    // High Voltage Step-Down Transformers in Substation
-    for (let tx = -3.5; tx <= 3.5; tx += 3.5) {
-      const transUnit = new THREE.Mesh(
-        new THREE.BoxGeometry(1.8, 2.0, 1.8),
-        new THREE.MeshStandardMaterial({ color: '#1E293B', metalness: 0.8, roughness: 0.4 })
-      );
-      transUnit.position.set(tx, 1.0, 3.5);
-      transUnit.castShadow = true;
-      gridGroup.add(transUnit);
-
-      // Bushings on transformer top
-      const bush = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.8, 8), new THREE.MeshBasicMaterial({ color: '#A855F7' }));
-      bush.position.set(tx, 2.4, 3.5);
-      gridGroup.add(bush);
+    for (let f = -1.3; f <= 1.3; f += 0.32) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.8, 2.8), steelMat);
+      fin.position.set(-3.8 + f, 1.3, 0);
+      pylonGroup.add(fin);
     }
 
     // =========================================================================
-    // 11. GLOWING ENERGY TRANSMISSION LASER LINES & ENERGY ORBS
+    // 11. GLOWING CYBER LASER ENERGY FLOW LINES & TRAVELING ORBS
     // =========================================================================
-    // Hub Substation Junction point
-    const posHub = new THREE.Vector3(-2.5, 1.5, 1.5);
-    const posPV = new THREE.Vector3(-14.0, 2.0, -8.0);
-    const posBESS = new THREE.Vector3(-7.5, 2.2, 5.5);
-    const posHouse = new THREE.Vector3(-1.0, 2.5, -4.0);
-    const posGrid = new THREE.Vector3(14.0, 3.0, -9.0);
-
-    animObjectsRef.current.anchorPoints = {
-      pv: posPV,
-      hub: posHub,
-      battery: posBESS,
-      house: posHouse,
-      grid: posGrid,
+    const anchorPoints = {
+      solar: new THREE.Vector3(-15.0, 0.8, -3.5),
+      bess: new THREE.Vector3(-6.8, 0.8, 4.0),
+      house: new THREE.Vector3(-1.0, 0.8, -1.0),
+      grid: new THREE.Vector3(16.0, 0.8, -3.5),
+      hub: new THREE.Vector3(-4.0, 0.2, 2.0),
     };
+    animObjectsRef.current.anchorPoints = anchorPoints;
 
-    // Helper: Create 3D Curved Laser Line
-    const createLaserPath = (p1, p2, midY = 2.5, colorHex = '#38BDF8') => {
-      const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-      mid.y = Math.max(p1.y, p2.y) + midY;
-      const curve = new THREE.CatmullRomCurve3([p1, mid, p2]);
-      const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.08, 8, false);
-      const tubeMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.65 });
+    const createEnergyLaser = (key, pStart, pEnd, baseColor) => {
+      const midPoint = new THREE.Vector3()
+        .addVectors(pStart, pEnd)
+        .multiplyScalar(0.5);
+      midPoint.y += 0.35;
+
+      const curve = new THREE.QuadraticBezierCurve3(pStart, midPoint, pEnd);
+      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.1, 8, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: baseColor,
+        transparent: true,
+        opacity: 0.85,
+      });
       const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
-      scene.add(tubeMesh);
-      return { curve, tubeMesh, tubeMat };
-    };
+      campusGroup.add(tubeMesh);
 
-    const flowCurves = {
-      pv: createLaserPath(posPV, posHub, 2.2, '#F59E0B'),
-      bess: createLaserPath(posHub, posBESS, 1.8, '#10B981'),
-      house: createLaserPath(posHub, posHouse, 1.5, '#3B82F6'),
-      grid: createLaserPath(posHub, posGrid, 3.5, '#8B5CF6'),
-    };
-    animObjectsRef.current.flowCurves = flowCurves;
-
-    // Glowing Particle Energy Orbs
-    const orbGeo = new THREE.SphereGeometry(0.25, 16, 16);
-    const createOrbGroup = (colorHex, count = 10) => {
-      const group = new THREE.Group();
-      const oMat = new THREE.MeshBasicMaterial({ color: colorHex });
-      for (let i = 0; i < count; i++) {
-        const orb = new THREE.Mesh(orbGeo, oMat);
-        orb.visible = false;
-        group.add(orb);
+      const orbGroup = new THREE.Group();
+      const orbMat = new THREE.MeshBasicMaterial({ color: '#FFFFFF' });
+      const orbs = [];
+      for (let o = 0; o < 4; o++) {
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), orbMat);
+        orbGroup.add(orb);
+        orbs.push(orb);
       }
-      scene.add(group);
-      return { group, count };
+      campusGroup.add(orbGroup);
+
+      animObjectsRef.current.flowCurves[key] = curve;
+      animObjectsRef.current.flowParticles[key] = { orbs, mesh: tubeMesh, active: true, speed: 0.35 };
     };
 
-    animObjectsRef.current.flowParticles = {
-      pv: createOrbGroup('#FDE047', 10),
-      bess: createOrbGroup('#34D399', 10),
-      house: createOrbGroup('#60A5FA', 10),
-      grid: createOrbGroup('#C4B5FD', 10),
-    };
+    createEnergyLaser('pv_to_bess', anchorPoints.solar, anchorPoints.bess, '#10B981');
+    createEnergyLaser('pv_to_house', anchorPoints.solar, anchorPoints.house, '#06B6D4');
+    createEnergyLaser('batt_flow', anchorPoints.bess, anchorPoints.house, '#10B981');
+    createEnergyLaser('grid_flow', anchorPoints.house, anchorPoints.grid, '#A855F7');
 
-    // Store references
-    animObjectsRef.current.sunMesh = sunMesh;
+    const nodeJunction = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.75, 0.75, 0.16, 24),
+      new THREE.MeshBasicMaterial({ color: '#38BDF8', transparent: true, opacity: 0.9 })
+    );
+    nodeJunction.position.copy(anchorPoints.hub);
+    campusGroup.add(nodeJunction);
+
     animObjectsRef.current.sunLight = sunLight;
-    animObjectsRef.current.moonMesh = moonMesh;
+    animObjectsRef.current.sunMesh = sunMesh;
     animObjectsRef.current.moonLight = moonLight;
+    animObjectsRef.current.moonMesh = moonMesh;
     animObjectsRef.current.hemiLight = hemiLight;
+    animObjectsRef.current.ambientLight = ambientLight;
 
-    // --- CONTINUOUS ANIMATION LOOP ---
+    setIsSceneReady(true);
+
+    // =========================================================================
+    // 12. CONTINUOUS RAF ANIMATION & TAB VISIBILITY PAUSE
+    // =========================================================================
     let animId;
-    const clock = new THREE.Clock();
+    let clock = new THREE.Clock();
+    let isTabVisible = true;
+
+    const handleVisibilityChange = () => {
+      isTabVisible = !document.hidden;
+      if (isTabVisible) clock.getDelta();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const delta = clock.getDelta();
+      if (!isTabVisible) return;
 
-      // Smooth camera transition if user clicked preset
-      if (targetCameraPos.current && targetLookAt.current) {
-        camera.position.lerp(targetCameraPos.current, 0.08);
-        controls.target.lerp(targetLookAt.current, 0.08);
+      const elapsedTime = clock.getElapsedTime();
+
+      // Smooth camera preset interpolation
+      if (targetCameraPos.current) {
+        camera.position.lerp(targetCameraPos.current, 0.05);
         if (camera.position.distanceTo(targetCameraPos.current) < 0.1) {
           targetCameraPos.current = null;
+        }
+      }
+      if (targetLookAt.current) {
+        controls.target.lerp(targetLookAt.current, 0.05);
+        if (controls.target.distanceTo(targetLookAt.current) < 0.1) {
           targetLookAt.current = null;
         }
       }
-
       controls.update();
 
-      // Project 3D Anchors to 2D Screen Space for HTML Badges
-      const anchors = animObjectsRef.current.anchorPoints;
-      if (anchors.pv) {
-        const project = (v3) => {
-          const v = v3.clone().project(camera);
-          const x = ((v.x + 1) * width) / 2;
-          const y = ((-v.y + 1) * height) / 2;
-          const visible = v.z < 1.0;
-          return { x, y, visible };
-        };
+      // Traveling Energy Orbs
+      Object.keys(animObjectsRef.current.flowParticles).forEach((k) => {
+        const item = animObjectsRef.current.flowParticles[k];
+        const curve = animObjectsRef.current.flowCurves[k];
+        if (item && curve && item.active) {
+          item.orbs.forEach((orb, idx) => {
+            const t = (elapsedTime * item.speed + idx * 0.25) % 1.0;
+            const pt = curve.getPoint(t);
+            orb.position.copy(pt);
+          });
+        }
+      });
 
-        setBadges({
-          pv: project(new THREE.Vector3(-16.0, 4.0, -8.0)),
-          battery: project(new THREE.Vector3(-7.5, 4.2, 5.5)),
-          house: project(new THREE.Vector3(-1.0, 6.5, -4.0)),
-          grid: project(new THREE.Vector3(16.0, 14.0, -10.0)),
-        });
-      }
+      // Project 3D Coordinates to 2D Screen Space for Badges
+      const projectBadge = (v3) => {
+        const p = v3.clone();
+        p.project(camera);
+        const halfW = container.clientWidth / 2;
+        const halfH = container.clientHeight / 2;
+        return {
+          x: p.x * halfW + halfW,
+          y: -(p.y * halfH) + halfH,
+          visible: p.z < 1.0,
+        };
+      };
+
+      setBadges({
+        pv: projectBadge(new THREE.Vector3(-18.0, 4.5, -3.5)),
+        house: projectBadge(new THREE.Vector3(-0.5, 9.6, -1.5)),
+        battery: projectBadge(new THREE.Vector3(-6.8, 4.0, 5.0)),
+        grid: projectBadge(new THREE.Vector3(20.0, 18.0, -3.5)),
+      });
 
       renderer.render(scene, camera);
     };
 
     animate();
 
-    // Window Resize Handler
-    const handleResize = () => {
-      if (!container || !camera || !renderer) return;
-      const newW = container.clientWidth;
-      const newH = container.clientHeight || 640;
-      camera.aspect = newW / newH;
-      camera.updateProjectionMatrix();
-      renderer.setSize(newW, newH);
-    };
-
-    window.addEventListener('resize', handleResize);
+    // ResizeObserver for Dynamic Container Sizing
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width: newW, height: newH } = entry.contentRect;
+        if (newW > 0 && newH > 0) {
+          camera.aspect = newW / newH;
+          camera.updateProjectionMatrix();
+          renderer.setSize(newW, newH);
+        }
+      }
+    });
+    resizeObserver.observe(container);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      resizeObserver.disconnect();
       cancelAnimationFrame(animId);
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -717,145 +906,109 @@ export default function SmartHouse3D({
       sunLight,
       moonMesh,
       moonLight,
+      hemiLight,
       windowLights,
       batteryLed,
-      batteryGlow,
-      pvPanels,
-      flowCurves,
       flowParticles,
     } = animObjectsRef.current;
 
-    // 1. Dynamic Celestial Movement (Sun & Moon Arc)
     if (isDay) {
       const progress = (hour - 6.0) / 12.0;
       const sunAngle = progress * Math.PI;
-      const sX = Math.cos(sunAngle) * 45;
-      const sY = Math.sin(sunAngle) * 35 + 4;
-      const sZ = Math.sin(sunAngle) * 20 - 10;
+      const sX = -Math.cos(sunAngle) * 50;
+      const sY = Math.sin(sunAngle) * 42 + 6;
+      const sZ = Math.sin(sunAngle) * 25 + 6;
 
       sunMesh.position.set(sX, sY, sZ);
       sunMesh.visible = true;
       sunLight.position.set(sX, sY, sZ);
-      sunLight.intensity = Math.max(0.6, Math.sin(sunAngle) * 2.8);
+      sunLight.intensity = Math.max(1.3, Math.sin(sunAngle) * 3.0);
 
-      if (progress < 0.2 || progress > 0.8) {
+      if (progress < 0.15 || progress > 0.85) {
         sunLight.color.set('#F59E0B');
         sunMesh.material.color.set('#F59E0B');
-        sceneRef.current.background.set('#1E1B4B');
+        sceneRef.current.background.set('#1E293B');
+        sceneRef.current.fog.color.set('#334155');
       } else {
-        sunLight.color.set('#FFFBEB');
-        sunMesh.material.color.set('#FBBF24');
-        sceneRef.current.background.set('#0A192F');
+        sunLight.color.set('#FFFDF0');
+        sunMesh.material.color.set('#FDE047');
+        sceneRef.current.background.set('#38BDF8');
+        sceneRef.current.fog.color.set('#BAE6FD');
       }
 
+      hemiLight.intensity = 1.15;
       moonMesh.visible = false;
       moonLight.intensity = 0;
-      windowLights.forEach((l) => (l.intensity = 0));
+      windowLights.forEach((l) => (l.intensity = 0.2));
     } else {
       sunMesh.visible = false;
       sunLight.intensity = 0;
 
-      moonMesh.position.set(-25, 35, -20);
+      moonMesh.position.set(30, 40, -30);
       moonMesh.visible = true;
-      moonLight.intensity = 0.5;
-      sceneRef.current.background.set('#060D1A');
+      moonLight.intensity = 1.2;
+      sceneRef.current.background.set('#0B132B');
+      sceneRef.current.fog.color.set('#1E293B');
 
-      // Turn on building lights at night
-      windowLights.forEach((l) => (l.intensity = 4.0));
+      hemiLight.intensity = 0.6;
+      windowLights.forEach((l) => (l.intensity = 3.8));
     }
 
-    // 2. BESS LED Status & Glow
     if (batteryLed) {
       if (p_batt_kw > 0.2) {
-        // Charging: Emerald Green
         batteryLed.material.color.set('#10B981');
-        batteryGlow.color.set('#10B981');
-        batteryGlow.intensity = 2.5;
       } else if (p_batt_kw < -0.2) {
-        // Discharging: Crimson Red
         batteryLed.material.color.set('#EF4444');
-        batteryGlow.color.set('#EF4444');
-        batteryGlow.intensity = 2.5;
       } else {
-        // Idle
-        batteryLed.material.color.set('#059669');
-        batteryGlow.color.set('#059669');
-        batteryGlow.intensity = 0.6;
+        batteryLed.material.color.set('#38BDF8');
       }
     }
 
-    // 3. Solar PV Glow Intensity
-    pvPanels.forEach((p) => {
-      if (p_pv_kw > 2.0) {
-        p.material.emissiveIntensity = Math.min(1.4, p_pv_kw / 100);
-        p.material.emissive.set('#FBBF24');
-      } else {
-        p.material.emissiveIntensity = 0.04;
-      }
-    });
-
-    // 4. Update Laser Tubes & Energy Particle Flow
-    const updatePathParticles = (key, activeKw, colorHex, reverse = false) => {
-      const pObj = flowParticles[key];
-      const curveObj = flowCurves[key];
-      if (!pObj || !curveObj) return;
-
-      const isActive = activeKw > 0.5;
-      curveObj.tubeMesh.visible = isActive;
-      curveObj.tubeMat.color.set(colorHex);
-
-      const count = pObj.count;
-      for (let i = 0; i < count; i++) {
-        const orb = pObj.group.children[i];
-        orb.visible = isActive;
-        if (isActive) {
-          orb.material.color.set(colorHex);
-          const speed = Math.max(0.4, Math.min(2.5, activeKw / 30));
-          const tOffset = (Date.now() * 0.001 * speed + i / count) % 1.0;
-          const t = reverse ? 1.0 - tOffset : tOffset;
-          orb.position.copy(curveObj.curve.getPointAt(t));
-          orb.scale.setScalar(Math.max(0.8, Math.min(2.0, activeKw / 35)));
-        }
-      }
-    };
-
-    // Solar PV Flow
-    updatePathParticles('pv', p_pv_kw, '#FBBF24', false);
-
-    // BESS Flow: Sạc vs Xả
-    if (p_batt_kw > 0.5) {
-      updatePathParticles('bess', p_batt_kw, '#10B981', false); // Nạp pin
-    } else if (p_batt_kw < -0.5) {
-      updatePathParticles('bess', Math.abs(p_batt_kw), '#EF4444', true); // Xả pin
-    } else {
-      updatePathParticles('bess', 0, '#10B981', false);
+    if (flowParticles.pv_to_bess && flowParticles.pv_to_house) {
+      const pvActive = p_pv_kw > 0.5;
+      flowParticles.pv_to_bess.active = pvActive;
+      flowParticles.pv_to_house.active = pvActive;
+      flowParticles.pv_to_house.speed = 0.15 + (p_pv_kw / 150) * 0.7;
     }
 
-    // Building Load Flow
-    updatePathParticles('house', p_load_kw, '#3B82F6', false);
+    if (flowParticles.batt_flow) {
+      const battActive = Math.abs(p_batt_kw) > 0.5;
+      flowParticles.batt_flow.active = battActive;
+      flowParticles.batt_flow.speed = 0.15 + (Math.abs(p_batt_kw) / 50) * 0.7;
+      flowParticles.batt_flow.mesh.material.color.set(p_batt_kw < -0.2 ? '#EF4444' : '#10B981');
+    }
 
-    // Grid Import / Export Flow
-    if (p_buy_kw > 0.5) {
-      updatePathParticles('grid', p_buy_kw, '#A855F7', true); // Mua lưới
-    } else if (p_sell_kw > 0.5) {
-      updatePathParticles('grid', p_sell_kw, '#FBBF24', false); // Bán lưới
-    } else {
-      updatePathParticles('grid', 0, '#8B5CF6', false);
+    if (flowParticles.grid_flow) {
+      const gridActive = Math.abs(p_buy_kw) > 0.2 || Math.abs(p_sell_kw) > 0.2;
+      flowParticles.grid_flow.active = gridActive;
+      flowParticles.grid_flow.speed = 0.25 + (Math.max(p_buy_kw, p_sell_kw) / 60) * 0.6;
     }
   }, [stepData]);
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '620px',
-        borderRadius: '16px',
-        overflow: 'hidden',
-        border: '1px solid rgba(59, 130, 246, 0.25)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 24px rgba(59, 130, 246, 0.1)',
-      }}
-    >
+    <div className="smart-house-3d-wrap">
+      {/* Loading Overlay */}
+      {!isSceneReady && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: '#0B132B',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.65rem',
+            color: '#60A5FA',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            zIndex: 30,
+          }}
+        >
+          <Loader2 size={24} className="spin-anim" />
+          <span>Đang nạp mô hình Microgrid 3D...</span>
+        </div>
+      )}
+
       {/* 3D WebGL Canvas */}
       <div ref={mountRef} style={{ width: '100%', height: '100%', outline: 'none' }} />
 
@@ -863,70 +1016,70 @@ export default function SmartHouse3D({
       <div
         style={{
           position: 'absolute',
-          top: '1rem',
-          right: '1rem',
+          top: '0.85rem',
+          right: '0.85rem',
           display: 'flex',
-          gap: '0.45rem',
-          background: 'rgba(15, 23, 42, 0.85)',
+          gap: '0.35rem',
+          background: 'rgba(15, 23, 42, 0.88)',
           backdropFilter: 'blur(12px)',
-          padding: '0.35rem 0.6rem',
+          padding: '0.3rem 0.5rem',
           borderRadius: '10px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           zIndex: 20,
         }}
       >
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([28, 20, 28], [0, 2, 0])}
-          title="Góc nhìn Isometric toàn cảnh Microgrid"
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([50, 38, 55], [0, 2.5, -2.0])}
+          title="Góc nhìn Toàn cảnh Microgrid (giống demo.png)"
         >
-          <Camera size={14} style={{ marginRight: 4 }} />
+          <Camera size={13} style={{ marginRight: 4 }} />
           Toàn cảnh
         </button>
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([-5, 6, 12], [-7.5, 2.2, 5.5])}
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([-6.8, 6.0, 13.0], [-6.8, 2.0, 5.0])}
           title="Cận cảnh Trạm BESS 200 kWh"
         >
-          <Battery size={14} color="#10B981" style={{ marginRight: 4 }} />
+          <Battery size={13} color="#10B981" style={{ marginRight: 4 }} />
           BESS 200kWh
         </button>
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([-12, 14, 2], [-16.0, 2.0, -8.0])}
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([-22, 16, 16], [-22, 2.0, -3.5])}
           title="Cận cảnh Nông trại Điện mặt trời Solar PV"
         >
-          <Sun size={14} color="#FBBF24" style={{ marginRight: 4 }} />
+          <Sun size={13} color="#FBBF24" style={{ marginRight: 4 }} />
           Solar PV Farm
         </button>
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([2, 8, 8], [-1.0, 3.5, -4.0])}
-          title="Cận cảnh Tòa nhà thông minh (Phụ tải)"
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([0, 14, 15], [-0.5, 5.5, -4.8])}
+          title="Cận cảnh Tòa nhà thông minh (Phụ tải & Pin trên nóc)"
         >
-          <Home size={14} color="#3B82F6" style={{ marginRight: 4 }} />
-          Tòa nhà
+          <Home size={13} color="#3B82F6" style={{ marginRight: 4 }} />
+          Tòa nhà & Nóc
         </button>
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([12, 14, -2], [16.0, 6.0, -10.0])}
-          title="Cận cảnh Trạm biến áp & Cột điện cao thế"
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([24, 18, 12], [20.0, 8.5, -3.5])}
+          title="Cận cảnh Cột điện cao thế & Trạm biến áp"
         >
-          <Zap size={14} color="#A855F7" style={{ marginRight: 4 }} />
+          <Zap size={13} color="#A855F7" style={{ marginRight: 4 }} />
           Lưới điện
         </button>
         <button
           className="btn-ctrl"
-          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '6px' }}
-          onClick={() => setCameraPreset([0, 45, 0.1], [0, 0, 0])}
+          style={{ width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+          onClick={() => setCameraPreset([0, 80, 0.1], [0, 0, 0])}
           title="Góc nhìn thẳng từ trên cao xuống"
         >
-          <Eye size={14} style={{ marginRight: 4 }} />
+          <Eye size={13} style={{ marginRight: 4 }} />
           Top-down
         </button>
       </div>
@@ -935,25 +1088,25 @@ export default function SmartHouse3D({
       {/* 1. Solar PV Badge */}
       {badges.pv.visible && (
         <div
-          onClick={() => setCameraPreset([-12, 14, 2], [-16.0, 2.0, -8.0])}
+          onClick={() => setCameraPreset([-22, 16, 16], [-22, 2.0, -3.5])}
           style={{
             position: 'absolute',
             left: `${badges.pv.x}px`,
             top: `${badges.pv.y}px`,
             transform: 'translate(-50%, -100%)',
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: 'rgba(15, 23, 42, 0.92)',
             backdropFilter: 'blur(10px)',
             border: '2px solid #F59E0B',
             borderRadius: '10px',
-            padding: '0.4rem 0.75rem',
+            padding: '0.35rem 0.75rem',
             color: '#FFFFFF',
             cursor: 'pointer',
-            boxShadow: '0 6px 20px rgba(245, 158, 11, 0.45)',
+            boxShadow: '0 6px 20px rgba(245, 158, 11, 0.5)',
             zIndex: 15,
             pointerEvents: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 700, color: '#FBBF24' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, color: '#FBBF24' }}>
             <span>☀️</span> SOLAR PV
           </div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, fontFamily: 'monospace' }}>
@@ -965,17 +1118,17 @@ export default function SmartHouse3D({
       {/* 2. Battery BESS Badge */}
       {badges.battery.visible && (
         <div
-          onClick={() => setCameraPreset([-5, 6, 12], [-7.5, 2.2, 5.5])}
+          onClick={() => setCameraPreset([-6.8, 6.0, 13.0], [-6.8, 2.0, 5.0])}
           style={{
             position: 'absolute',
             left: `${badges.battery.x}px`,
             top: `${badges.battery.y}px`,
             transform: 'translate(-50%, -100%)',
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: 'rgba(15, 23, 42, 0.92)',
             backdropFilter: 'blur(10px)',
             border: `2px solid ${stepData?.p_batt_kw < -0.1 ? '#EF4444' : '#10B981'}`,
             borderRadius: '10px',
-            padding: '0.4rem 0.75rem',
+            padding: '0.35rem 0.75rem',
             color: '#FFFFFF',
             cursor: 'pointer',
             boxShadow: `0 6px 20px ${stepData?.p_batt_kw < -0.1 ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)'}`,
@@ -983,8 +1136,8 @@ export default function SmartHouse3D({
             pointerEvents: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 700, color: stepData?.p_batt_kw < -0.1 ? '#F87171' : '#34D399' }}>
-            <span>🔋</span> BESS (SoC: {stepData?.soc_pct?.toFixed(0) || 50}%)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, color: stepData?.p_batt_kw < -0.1 ? '#F87171' : '#34D399' }}>
+            <span>🔋</span> BESS (SoC: {stepData?.soc_pct?.toFixed(0) || 90}%)
           </div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, fontFamily: 'monospace' }}>
             {stepData?.p_batt_kw > 0
@@ -999,17 +1152,17 @@ export default function SmartHouse3D({
       {/* 3. House Load Badge */}
       {badges.house.visible && (
         <div
-          onClick={() => setCameraPreset([2, 8, 8], [-1.0, 3.5, -4.0])}
+          onClick={() => setCameraPreset([0, 14, 15], [-0.5, 5.5, -4.8])}
           style={{
             position: 'absolute',
             left: `${badges.house.x}px`,
             top: `${badges.house.y}px`,
             transform: 'translate(-50%, -100%)',
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: 'rgba(15, 23, 42, 0.92)',
             backdropFilter: 'blur(10px)',
             border: '2px solid #3B82F6',
             borderRadius: '10px',
-            padding: '0.4rem 0.75rem',
+            padding: '0.35rem 0.75rem',
             color: '#FFFFFF',
             cursor: 'pointer',
             boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)',
@@ -1017,7 +1170,7 @@ export default function SmartHouse3D({
             pointerEvents: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 700, color: '#60A5FA' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, color: '#60A5FA' }}>
             <span>🏠</span> PHỤ TẢI NHÀ
           </div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, fontFamily: 'monospace' }}>
@@ -1029,17 +1182,17 @@ export default function SmartHouse3D({
       {/* 4. EVN Grid Badge */}
       {badges.grid.visible && (
         <div
-          onClick={() => setCameraPreset([12, 14, -2], [16.0, 6.0, -10.0])}
+          onClick={() => setCameraPreset([24, 18, 12], [20.0, 8.5, -3.5])}
           style={{
             position: 'absolute',
             left: `${badges.grid.x}px`,
             top: `${badges.grid.y}px`,
             transform: 'translate(-50%, -100%)',
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: 'rgba(15, 23, 42, 0.92)',
             backdropFilter: 'blur(10px)',
             border: '2px solid #A855F7',
             borderRadius: '10px',
-            padding: '0.4rem 0.75rem',
+            padding: '0.35rem 0.75rem',
             color: '#FFFFFF',
             cursor: 'pointer',
             boxShadow: '0 6px 20px rgba(168, 85, 247, 0.5)',
@@ -1047,7 +1200,7 @@ export default function SmartHouse3D({
             pointerEvents: 'auto',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 700, color: '#C4B5FD' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', fontWeight: 700, color: '#C4B5FD' }}>
             <span>⚡</span> Lưới điện
           </div>
           <div style={{ fontSize: '0.95rem', fontWeight: 800, fontFamily: 'monospace' }}>
@@ -1060,18 +1213,18 @@ export default function SmartHouse3D({
         </div>
       )}
 
-      {/* Bottom Hint */}
+      {/* Bottom Hint Bar */}
       <div
         style={{
           position: 'absolute',
           bottom: '0.75rem',
-          left: '1rem',
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          padding: '0.35rem 0.75rem',
+          left: '0.85rem',
+          background: 'rgba(15, 23, 42, 0.88)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          padding: '0.3rem 0.75rem',
           borderRadius: '8px',
-          fontSize: '0.78rem',
-          color: '#CBD5E1',
+          fontSize: '0.74rem',
+          color: '#E2E8F0',
           pointerEvents: 'none',
           backdropFilter: 'blur(8px)',
         }}

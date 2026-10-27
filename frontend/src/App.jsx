@@ -30,7 +30,7 @@ export default function App() {
   const [simResult, setSimResult] = useState(null);
 
   // Time scrubber current step (0 to 95)
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(38); // Default to 09:30 morning peak matching demo.png
 
   // Fetch metadata on mount
   useEffect(() => {
