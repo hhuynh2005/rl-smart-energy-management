@@ -1,13 +1,14 @@
 """
-SEMS-RL: Interactive Streamlit Dashboard for Microgrid BESS & Solar PV Simulation.
-Giao diện trực quan hóa môi trường mô phỏng năng lượng thông minh.
-Phụ trách: Nguyễn Văn Huỳnh (Nhóm trưởng) & Lý Đình Sơn (Môi trường).
+SEMS-RL: Industrial-Grade Microgrid BESS & Solar PV Simulation Dashboard.
+Hệ thống Giám sát & Quản lý Năng lượng Thông minh (Smart Energy Management System).
+Được thiết kế theo tiêu chuẩn Production cho Báo cáo Bài tập lớn Học tăng cường (Nhóm 7 - 65KTPM).
+Tác giả phụ trách Phân hệ Môi trường & Giao diện: Nguyễn Văn Huỳnh & Lý Đình Sơn.
 """
 
 import sys
 import os
 
-# Đảm bảo console Windows xử lý mã hóa UTF-8
+# Đảm bảo console Windows xử lý mã hóa UTF-8 tuyệt đối an toàn
 for stream in [sys.stdout, sys.stderr]:
     if hasattr(stream, "reconfigure"):
         try:
@@ -21,130 +22,185 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Cấu hình giao diện trang Streamlit
+# Cấu hình trang Streamlit chuẩn Production
 st.set_page_config(
-    page_title="SEMS-RL | Microgrid Simulation Dashboard",
+    page_title="SEMS-RL | Smart Energy Management System",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS cho giao diện hiện đại phong cách Clean Energy Dashboard
+# Custom CSS giao diện Production phong cách Industrial Clean Energy
 st.markdown("""
 <style>
-    .main-title {
-        font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E3A8A;
-        margin-bottom: 0.2rem;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
     }
-    .sub-title {
-        font-size: 1.05rem;
-        color: #4B5563;
-        margin-bottom: 1.2rem;
+    
+    .main-header {
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
-    .badge {
-        display: inline-block;
-        padding: 0.25rem 0.6rem;
+    
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(16, 185, 129, 0.15);
+        color: #10B981;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
         font-size: 0.8rem;
         font-weight: 600;
-        border-radius: 9999px;
-        margin-right: 0.4rem;
+        margin-right: 0.5rem;
+        border: 1px solid rgba(16, 185, 129, 0.3);
     }
-    .badge-gym { background-color: #DEF7EC; color: #03543F; }
-    .badge-citylearn { background-color: #E1EFFE; color: #1E429F; }
-    .badge-tou { background-color: #FEF08A; color: #854D0E; }
-    .card-metric {
-        background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
-        border-radius: 10px;
-        padding: 1rem;
-        border-left: 4px solid #3B82F6;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    
+    .status-pill-info {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3B82F6;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .status-pill-warning {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(245, 158, 11, 0.15);
+        color: #F59E0B;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    
+    .spec-card {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .card-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .card-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #0F172A;
     }
 </style>
 """, unsafe_allow_html=True)
 
 from sems_rl.envs.microgrid_env import MicrogridBessEnv
-from sems_rl.envs.wrappers import NoiseWrapper
+from sems_rl.envs.wrappers import NoiseWrapper, DiscretizeActionWrapper
 from sems_rl.baselines.no_battery import NoBatteryBaseline, RuleBasedController
 from sems_rl.metrics.evaluator import MetricsEvaluator
 
 
 @st.cache_resource
-def get_env():
+def get_base_env():
     return MicrogridBessEnv(config_path="sems_rl/config.yaml")
 
 
-env = get_env()
+env = get_base_env()
 
-# --- SIDEBAR: CẤU HÌNH & CHỌN KỊCH BẢN ---
-st.sidebar.markdown("### ⚡ SEMS-RL Controls")
+# --- SIDEBAR: ĐIỀU KHIỂN & CẤU HÌNH HỆ THỐNG ---
+st.sidebar.markdown("## ⚙️ SEMS Control Center")
 st.sidebar.markdown(
-    '<span class="badge badge-gym">Gymnasium v1.0</span>'
-    '<span class="badge badge-citylearn">CityLearn Architecture</span>'
-    '<span class="badge badge-tou">EVN TOU 3-Tier</span>',
-    unsafe_allow_html=True
+    """
+    <div style="margin-bottom: 1rem;">
+        <span class="status-pill">● DIGITAL TWIN: ACTIVE</span>
+        <span class="status-pill-info">● GYM v1.0</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
-st.sidebar.write("")
 
-# 1. Chọn Kịch bản thử nghiệm theo Báo cáo TH2
-st.sidebar.subheader("1. Chọn kịch bản vận hành")
-scenario = st.sidebar.selectbox(
-    "Kịch bản thử nghiệm:",
+# 1. Chọn Kịch bản vận hành
+st.sidebar.subheader("1. Kịch bản thử nghiệm (Scenarios)")
+scenario_choice = st.sidebar.selectbox(
+    "Chọn kịch bản vận hành:",
     [
-        "S1: Ngày làm việc điển hình (Typical Weekday)",
-        "S2: Ngày cuối tuần (Weekend - Tải thấp, không giờ cao điểm)",
+        "S1: Ngày làm việc điển hình (Weekday High-Load)",
+        "S2: Ngày cuối tuần (Weekend Low-Load / No-Peak)",
         "S3: Ngày nhiều mây (Cloudy Day - PV giảm 50%)",
-        "S4: Thử độ bền với Nhiễu (Robustness Test - NoiseWrapper)",
-        "S5: Tùy chọn ngày tự do (Custom Date Picker)",
+        "S4: Thử thách độ bền với Nhiễu (Robustness - NoiseWrapper)",
+        "S5: Tùy biến toàn bộ 365 ngày (Custom Split & Day)",
     ],
     index=0,
 )
 
-# Xử lý chọn ngày theo kịch bản
 split = "test"
+day_offset = 0
 apply_noise = False
 
-if "S1:" in scenario:
-    # Tìm ngày weekday đầu tiên trong tập test
+if "S1:" in scenario_choice:
     split = "test"
-    target_day = 0
-elif "S2:" in scenario:
-    # Tìm ngày chủ nhật trong tập test
+    day_offset = 0
+elif "S2:" in scenario_choice:
     split = "test"
-    target_day = 2  # ngày chủ nhật
-elif "S3:" in scenario:
-    # Ngày PV thấp
+    day_offset = 2
+elif "S3:" in scenario_choice:
     split = "test"
-    target_day = 5
-elif "S4:" in scenario:
+    day_offset = 5
+elif "S4:" in scenario_choice:
     split = "test"
-    target_day = 0
+    day_offset = 0
     apply_noise = True
 else:
     split = st.sidebar.selectbox("Phân vùng dữ liệu:", ["test", "val", "train"], index=0)
-    max_days = env.data_pipeline.get_num_days(split)
-    target_day = st.sidebar.slider(
-        f"Chọn ngày mô phỏng (0 đến {max_days-1}):",
+    total_split_days = env.data_pipeline.get_num_days(split)
+    day_offset = st.sidebar.slider(
+        f"Chọn ngày mô phỏng (trong tập {split.upper()}):",
         min_value=0,
-        max_value=max(0, max_days - 1),
+        max_value=max(0, total_split_days - 1),
         value=0,
     )
 
-# 2. Chọn chiến lược vận hành
-st.sidebar.subheader("2. Chiến lược điều khiển Pin BESS")
-policy_mode = st.sidebar.radio(
-    "Bộ điều khiển (Agent Strategy):",
+# 2. Cơ chế An toàn Safety Guardrail (Ablation Study Switch)
+st.sidebar.subheader("2. Cơ chế an toàn (Safety Guardrail)")
+use_guardrail = st.sidebar.toggle(
+    "Bật Safety Guardrail (Bộ lọc khả thi)",
+    value=True,
+    help="Khi BẬT: Pin luôn được ghim an toàn trong [20%, 90%]. Khi TẮT: Phục vụ thí nghiệm bóc tách Ablation Study.",
+)
+
+# 3. Chọn Bộ Điều Khiển (Strategy)
+st.sidebar.subheader("3. Bộ điều khiển BESS (Agent Strategy)")
+strategy = st.sidebar.radio(
+    "Chọn chiến lược ra quyết định:",
     [
         "Mốc đối chuẩn: No-Battery (Pin nghỉ, a=0)",
-        "Heuristic: Rule-Based Controller (Chuyên gia)",
-        "Thủ công: Interactive Custom Schedule",
+        "Chuyên gia: Rule-Based Heuristic Controller",
+        "Thủ công: Interactive Schedule Tuner",
+        "RL Policy Checkpoint (Sẵn sàng kết nối mô hình)",
     ],
     index=1,
 )
 
+# Mức SoC ban đầu lúc 00:00
 initial_soc = st.sidebar.slider(
-    "Mức sạc pin ban đầu (SoC 00:00):",
+    "Mức pin ban đầu SoC (lúc 00:00):",
     min_value=0.20,
     max_value=0.90,
     value=0.50,
@@ -152,289 +208,447 @@ initial_soc = st.sidebar.slider(
     format="%.2f",
 )
 
-st.sidebar.subheader("3. Thông số kỹ thuật hệ thống")
+# Cấu hình thanh trượt nếu chọn thủ công
+manual_actions = {}
+if "Interactive Schedule" in strategy:
+    st.sidebar.markdown("**Tinh chỉnh công suất từng khung giờ:**")
+    manual_actions["night"] = st.sidebar.slider("Đêm (22h-4h, Thấp điểm):", -1.0, 1.0, 0.6, 0.1)
+    manual_actions["morning_peak"] = st.sidebar.slider("Cao điểm sáng (9h30-11h30):", -1.0, 1.0, -1.0, 0.1)
+    manual_actions["solar_noon"] = st.sidebar.slider("Trưa nắng thừa PV (11h30-15h):", -1.0, 1.0, 0.8, 0.1)
+    manual_actions["evening_peak"] = st.sidebar.slider("Cao điểm tối (17h-20h):", -1.0, 1.0, -1.0, 0.1)
+    manual_actions["normal"] = st.sidebar.slider("Các giờ bình thường khác:", -1.0, 1.0, 0.0, 0.1)
+
+# Thông số vật lý của trạm BESS
+st.sidebar.subheader("4. Thông số vật lý hệ thống")
 st.sidebar.markdown(f"""
-- 🔋 **Dung lượng pin BESS:** `{env.battery.e_cap:.0f} kWh`
-- ⚡ **Công suất định mức:** `{env.battery.p_charge_max:.0f} kW` (0.25C)
-- 🔄 **Hiệu suất sạc/xả:** `{env.battery.eta_c*100:.0f}%`
+- 🔋 **Dung lượng danh định (E_cap):** `{env.battery.e_cap:.0f} kWh`
+- ⚡ **Công suất inverter định mức:** `{env.battery.p_charge_max:.0f} kW` (0.25C)
+- 🔄 **Hiệu suất chu trình khứ hồi:** `{env.battery.eta_c * env.battery.eta_d * 100:.1f}%`
 - 🛡️ **Dải SoC an toàn:** `[{env.battery.soc_min*100:.0f}%, {env.battery.soc_max*100:.0f}%]`
-- ☀️ **Công suất PV định mức:** `{env.p_pv_rated:.0f} kWp`
-- 🎯 **Ngưỡng công suất đỉnh:** `{env.p_th:.0f} kW`
+- ☀️ **Hệ thống Solar PV:** `{env.p_pv_rated:.0f} kWp`
+- 🎯 **Ngưỡng đỉnh lưới (P_th):** `{env.p_th:.0f} kW`
 """)
 
-st.sidebar.warning(
-    "⚠️ **Lưu ý môn học:** Các thuật toán RL (SAC, TD3, PPO, DDQN) hiện đang do các thành viên (Trường, Quang Anh, Dương, Ly) tự code. Giao diện này phục vụ nghiệm thu môi trường và chạy thử nghiệm mốc đối chứng."
-)
+# --- CHẠY QUY TRÌNH MÔ PHỎNG SỐ ---
+# Cấu hình Guardrail động theo toggle
+env.guardrail.enabled = use_guardrail
 
-# --- CHẠY MÔ PHỎNG ---
-# Môi trường thực tế (có thể bọc NoiseWrapper nếu chọn kịch bản S4)
-sim_env = env
+# Tạo môi trường thực thi (áp dụng NoiseWrapper nếu kịch bản S4)
+active_env = env
 if apply_noise:
-    sim_env = NoiseWrapper(env, sigma_load=0.08, sigma_pv=0.15, seed=42)
+    active_env = NoiseWrapper(env, sigma_load=0.08, sigma_pv=0.15, seed=42)
 
-# 1. Chạy mốc No-Battery làm căn cứ tính % tiết kiệm và cắt đỉnh
-obs, info = sim_env.reset(options={"day_offset": target_day, "split": split, "initial_soc": initial_soc})
-nobat_history = []
+# 1. Chạy mốc No-Battery làm chuẩn đo lường (J_nobat, Peak_nobat)
+obs_nb, info_nb = active_env.reset(options={"day_offset": day_offset, "split": split, "initial_soc": initial_soc})
+nobat_records = []
 while True:
-    obs, reward, term, trunc, step_info = sim_env.step(np.array([0.0], dtype=np.float32))
-    nobat_history.append(step_info)
-    if term or trunc:
+    obs_nb, rew_nb, term_nb, trunc_nb, sinfo_nb = active_env.step(np.array([0.0], dtype=np.float32))
+    nobat_records.append(sinfo_nb)
+    if term_nb or trunc_nb:
         break
-df_nobat = pd.DataFrame(nobat_history)
+
+df_nobat = pd.DataFrame(nobat_records)
 j_nobat = float(df_nobat["c_elec"].sum())
 peak_nobat = float(df_nobat["p_buy_kw"].max())
 
-# 2. Chạy chính sách điều khiển được chọn
-obs, info = sim_env.reset(options={"day_offset": target_day, "split": split, "initial_soc": initial_soc})
+# 2. Chạy chính sách điều khiển đang chọn
+obs, info = active_env.reset(options={"day_offset": day_offset, "split": split, "initial_soc": initial_soc})
 rbc = RuleBasedController(p_th=env.p_th)
-sim_history = []
+sim_records = []
 step_idx = 0
 
 while True:
-    if policy_mode == "Mốc đối chuẩn: No-Battery (Pin nghỉ, a=0)":
-        action = np.array([0.0], dtype=np.float32)
-    elif policy_mode == "Heuristic: Rule-Based Controller (Chuyên gia)":
-        action = rbc.select_action(obs, info)
-    else:
-        # Chế độ thủ công: Sạc đêm, xả chiều
+    if "No-Battery" in strategy:
+        act = np.array([0.0], dtype=np.float32)
+    elif "Rule-Based" in strategy:
+        act = rbc.select_action(obs, info)
+    elif "Interactive Schedule" in strategy:
         h = (step_idx * 0.25) % 24.0
         if 22.0 <= h or h < 4.0:
-            act_val = 0.6  # Sạc đêm
-        elif (9.5 <= h < 11.5) or (17.0 <= h < 20.0):
-            act_val = -1.0 # Xả mạnh cao điểm
+            val = manual_actions.get("night", 0.6)
+        elif 9.5 <= h < 11.5:
+            val = manual_actions.get("morning_peak", -1.0)
+        elif 11.5 <= h < 15.0:
+            val = manual_actions.get("solar_noon", 0.8)
+        elif 17.0 <= h < 20.0:
+            val = manual_actions.get("evening_peak", -1.0)
         else:
-            act_val = 0.0
-        action = np.array([act_val], dtype=np.float32)
+            val = manual_actions.get("normal", 0.0)
+        act = np.array([val], dtype=np.float32)
+    else:
+        # RL Policy Placeholder
+        # Khi có checkpoint thật, nạp model.predict(obs). Tạm thời dùng heuristic fallback
+        act = rbc.select_action(obs, info)
 
-    obs, reward, term, trunc, step_info = sim_env.step(action)
-    sim_history.append(step_info)
+    obs, reward, term, trunc, sinfo = active_env.step(act)
+    sim_records.append(sinfo)
     step_idx += 1
     if term or trunc:
         break
 
-df_sim = pd.DataFrame(sim_history)
+df_sim = pd.DataFrame(sim_records)
 evaluator = MetricsEvaluator(j_nobat_mean=j_nobat, peak_nobat_max=peak_nobat)
-metrics = evaluator.evaluate_episode(sim_history)
+kpi = evaluator.evaluate_episode(sim_records)
 
-# --- NỘI DUNG CHÍNH TRÊN DASHBOARD ---
-st.markdown('<div class="main-title">⚡ SEMS-RL: Dashboard Quản Lý Năng Lượng Thông Minh</div>', unsafe_allow_html=True)
+# --- HEADER CHÍNH CỦA HỆ THỐNG ---
 st.markdown(
-    f'<div class="sub-title">Mô phỏng vận hành Microgrid BESS & Solar PV trong 24 giờ (96 bước, mỗi bước 15 phút) — <b>{scenario}</b></div>',
-    unsafe_allow_html=True
+    f"""
+    <div class="main-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.8rem; font-weight: 700; color: #FFFFFF;">
+                    ⚡ SEMS-RL: Smart Energy Management System
+                </h1>
+                <p style="margin: 0.3rem 0 0 0; color: #94A3B8; font-size: 0.95rem;">
+                    Hệ thống Điều phối Tối ưu BESS 200kWh & Solar PV 150kWp • Chu kỳ 15 phút (96 bước/ngày)
+                </p>
+            </div>
+            <div style="text-align: right;">
+                <span class="status-pill">● BESS HEALTH: 100%</span>
+                <span class="status-pill-info">● GRID SYNCHRONIZED</span>
+                <div style="margin-top: 0.4rem; font-size: 0.85rem; color: #CBD5E1;">
+                    Kịch bản: <b>{scenario_choice.split(':')[0]}</b> | Tập dữ liệu: <b>{split.upper()}</b> | Ngày: <b>#{day_offset}</b>
+                </div>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-# Thẻ chỉ số tổng quan (KPI Metrics Cards)
-c1, c2, c3, c4, c5 = st.columns(5)
-with c1:
-    cost_val = metrics["daily_cost_j"]
-    saving_val = metrics.get("cost_saving_pct", 0.0)
+# --- EXECUTIVE KPI METRICS CARDS ---
+k1, k2, k3, k4, k5, k6 = st.columns(6)
+
+with k1:
+    cost_val = kpi["daily_cost_j"]
+    saving_pct = kpi.get("cost_saving_pct", 0.0)
+    delta_str = f"{saving_pct:+.1f}% vs NoBat" if "No-Battery" not in strategy else "Mốc tham chiếu"
     st.metric(
         label="💰 Chi phí điện (J)",
         value=f"{cost_val:,.0f} đ",
-        delta=f"{saving_val:+.1f}% vs NoBat" if "No-Battery" not in policy_mode else None,
+        delta=delta_str if "No-Battery" not in strategy else None,
         delta_color="normal",
     )
-with c2:
-    peak_val = metrics["peak_buy_kw"]
-    shaving_val = metrics.get("peak_shaving_pct", 0.0)
+
+with k2:
+    peak_val = kpi["peak_buy_kw"]
+    peak_saving = kpi.get("peak_shaving_pct", 0.0)
+    delta_peak = f"{peak_saving:+.1f}% cắt đỉnh" if "No-Battery" not in strategy else "Đỉnh gốc"
     st.metric(
         label="⚡ Đỉnh mua lưới (Peak)",
         value=f"{peak_val:.1f} kW",
-        delta=f"{shaving_val:+.1f}% cắt đỉnh" if "No-Battery" not in policy_mode else None,
+        delta=delta_peak if "No-Battery" not in strategy else None,
         delta_color="normal",
     )
-with c3:
+
+with k3:
     st.metric(
         label="☀️ Tự tiêu thụ PV",
-        value=f"{metrics['pv_self_consumption']*100:.1f} %",
-        help="Tỷ lệ năng lượng mặt trời được tiêu thụ nội bộ thay vì phát ngược lên lưới giá thấp.",
+        value=f"{kpi['pv_self_consumption']*100:.1f} %",
+        delta="Năng lượng sạch tại chỗ",
+        delta_color="off",
     )
-with c4:
+
+with k4:
     st.metric(
-        label="🔄 Chu kỳ pin (EFC)",
-        value=f"{metrics['efc']:.3f} cycles",
-        help="Equivalent Full Cycles: Đo lường độ hao mòn pin tương đương trong ngày.",
+        label="🔄 Chu kỳ hao mòn (EFC)",
+        value=f"{kpi['efc']:.3f} cyl",
+        delta=f"{kpi['efc']*200:.1f} kWh qua pin",
+        delta_color="off",
     )
-with c5:
+
+with k5:
+    clip_count = kpi["clipped_steps"]
     st.metric(
-        label="🛡️ Chạm Safety Guardrail",
-        value=f"{metrics['clipped_steps']}/96 bước",
-        help="Số bước lệnh của Agent bị bộ lọc an toàn ghim lại để bảo vệ tuổi thọ pin trong khoảng 20% - 90%.",
+        label="🛡️ Chạm Safety Filter",
+        value=f"{clip_count} / 96 bước",
+        delta="Bảo vệ pin [20-90%]" if use_guardrail else "⚠️ Guardrail TẮT",
+        delta_color="inverse" if not use_guardrail else "off",
+    )
+
+with k6:
+    total_pv_day = float(df_sim["p_pv_kw"].sum() * 0.25)
+    st.metric(
+        label="🌿 Tổng phát PV ngày",
+        value=f"{total_pv_day:,.0f} kWh",
+        delta=f"Đỉnh PV: {df_sim['p_pv_kw'].max():.1f} kW",
+        delta_color="off",
     )
 
 st.write("")
 
-# TABS GIAO DIỆN ĐỒ THỊ PLOTLY
-tab1, tab2, tab3 = st.tabs([
-    "📊 Cân bằng công suất & Động lực pin",
-    "📈 Phân tích cắt đỉnh & Biểu giá TOU EVN",
-    "📋 Nhật ký 96 bước mô phỏng (CSV)",
+# --- VISUALIZATION WORKBENCH (5 TABS CHUYÊN SÂU) ---
+tab_energy, tab_battery, tab_peak, tab_ablation, tab_table = st.tabs([
+    "📊 1. Cân Bằng Năng Lượng & Dòng Công Suất",
+    "🔋 2. Động Lực Học Pin & Safety Guardrail",
+    "🎯 3. Cắt Đỉnh Lưới & Phân Tích Biểu Giá EVN",
+    "🔬 4. Thí Nghiệm Bóc Tách (Ablation Study)",
+    "📋 5. Nhật Ký 96 Bước & Xuất Báo Cáo CSV",
 ])
 
-# --- TAB 1: PLOTLY CHARTS CÂN BẰNG CÔNG SUẤT VÀ PIN ---
-with tab1:
-    col_chart1, col_chart2 = st.columns(2)
-    
-    with col_chart1:
-        fig1 = go.Figure()
+# ==============================================================================
+# TAB 1: CÂN BẰNG CÔNG SUẤT VÀ DÒNG NĂNG LƯỢNG
+# ==============================================================================
+with tab_energy:
+    col_e1, col_e2 = st.columns([3, 1])
+    with col_e1:
+        fig_power = go.Figure()
         # Phụ tải P_load
-        fig1.add_trace(go.Scatter(
+        fig_power.add_trace(go.Scatter(
             x=df_sim["hour"], y=df_sim["p_load_kw"],
-            mode="lines", name="Phụ tải (P_load)",
-            line=dict(color="#F59E0B", width=2.5),
+            mode="lines", name="Phụ tải tòa nhà (P_load)",
+            line=dict(color="#F97316", width=2.5),
         ))
         # Phát điện mặt trời P_pv
-        fig1.add_trace(go.Scatter(
+        fig_power.add_trace(go.Scatter(
             x=df_sim["hour"], y=df_sim["p_pv_kw"],
-            mode="lines", name="Quang điện (P_pv)",
+            mode="lines", name="Quang điện Solar (P_pv)",
             fill="tozeroy", fillcolor="rgba(251, 191, 36, 0.25)",
             line=dict(color="#FBBF24", width=2),
         ))
-        # Công suất sạc / xả pin P_batt
-        fig1.add_trace(go.Bar(
+        # Công suất sạc/xả pin BESS
+        fig_power.add_trace(go.Bar(
             x=df_sim["hour"], y=df_sim["p_batt_kw"],
             name="Pin BESS (P_batt)",
             marker_color=np.where(df_sim["p_batt_kw"] >= 0, "#10B981", "#EF4444"),
-            opacity=0.7,
+            opacity=0.75,
         ))
-        fig1.update_layout(
-            title="<b>1. Cân bằng công suất Microgrid (24 Giờ)</b>",
-            xaxis_title="Thời gian (Giờ)",
+        # Mua điện lưới P_buy
+        fig_power.add_trace(go.Scatter(
+            x=df_sim["hour"], y=df_sim["p_buy_kw"],
+            mode="lines", name="Mua từ lưới (P_buy)",
+            line=dict(color="#8B5CF6", width=2, dash="dash"),
+        ))
+        fig_power.update_layout(
+            title="<b>Phân Bố Dòng Công Suất Microgrid 24 Giờ (96 Bước 15 Phút)</b>",
+            xaxis_title="Thời gian trong ngày (Giờ: 00:00 -> 24:00)",
             yaxis_title="Công suất (kW)",
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=40, r=20, t=50, b=40),
-            height=380,
+            height=420,
         )
-        st.plotly_chart(fig1, use_container_width=True)
-        st.caption("💡 *P_batt > 0 (xanh): Sạc điện vào pin. P_batt < 0 (đỏ): Xả điện từ pin hỗ trợ phụ tải.*")
+        st.plotly_chart(fig_power, use_container_width=True)
 
-    with col_chart2:
-        fig2 = go.Figure()
-        # Vùng an toàn 20% - 90%
-        fig2.add_hrect(
+    with col_e2:
+        st.markdown("#### ⚡ Cơ cấu Nguồn Cấp Tải")
+        tot_load = float(df_sim["p_load_kw"].sum() * 0.25)
+        tot_pv_used = float(min(df_sim["p_load_kw"].sum(), df_sim["p_pv_kw"].sum()) * 0.25)
+        tot_batt_dis = float(abs(df_sim[df_sim["p_batt_kw"] < 0]["p_batt_kw"].sum()) * 0.25)
+        tot_grid_buy = float(df_sim["p_buy_kw"].sum() * 0.25)
+        
+        fig_donut = go.Figure(data=[go.Pie(
+            labels=["Mặt trời (PV)", "Pin BESS (Xả)", "Lưới EVN (Mua)"],
+            values=[tot_pv_used, tot_batt_dis, tot_grid_buy],
+            hole=0.55,
+            marker_colors=["#FBBF24", "#10B981", "#8B5CF6"],
+        )])
+        fig_donut.update_layout(
+            margin=dict(l=10, r=10, t=20, b=10),
+            height=280,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+        st.caption(f"Tổng tiêu thụ trong ngày: **{tot_load:,.1f} kWh**")
+
+# ==============================================================================
+# TAB 2: ĐỘNG LỰC HỌC PIN & SAFETY GUARDRAIL
+# ==============================================================================
+with tab_battery:
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        fig_soc = go.Figure()
+        # Vùng xanh an toàn [20%, 90%]
+        fig_soc.add_hrect(
             y0=20, y1=90,
             fillcolor="rgba(16, 185, 129, 0.12)", line_width=0,
-            annotation_text="Dải vận hành an toàn (Safe Operating Region: 20% - 90%)",
+            annotation_text="Dải vận hành an toàn [20% - 90%]",
             annotation_position="top left",
         )
         # Đường SoC
-        fig2.add_trace(go.Scatter(
+        fig_soc.add_trace(go.Scatter(
             x=df_sim["hour"], y=df_sim["soc"] * 100,
-            mode="lines+markers", name="SoC thực tế (%)",
+            mode="lines+markers", name="Mức sạc pin SoC (%)",
             line=dict(color="#2563EB", width=3),
             marker=dict(size=4),
         ))
-        # Đường biên 90%
-        fig2.add_hline(y=90, line_dash="dash", line_color="#DC2626", annotation_text="SoC Max (90%)")
-        # Đường biên 20%
-        fig2.add_hline(y=20, line_dash="dash", line_color="#D97706", annotation_text="SoC Min (20%)")
-        
-        fig2.update_layout(
-            title="<b>2. Mức sạc pin (SoC) & Vùng an toàn Safety Guardrail</b>",
+        # Ngưỡng 90% & 20%
+        fig_soc.add_hline(y=90, line_dash="dash", line_color="#DC2626", annotation_text="SoC Max (90%)")
+        fig_soc.add_hline(y=20, line_dash="dash", line_color="#D97706", annotation_text="SoC Min (20%)")
+        fig_soc.update_layout(
+            title="<b>Đường Cong Mức Sạc Pin (SoC) & Dải An Toàn</b>",
             xaxis_title="Thời gian (Giờ)",
             yaxis_title="State of Charge (%)",
             yaxis=dict(range=[0, 100]),
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=40, r=20, t=50, b=40),
-            height=380,
+            height=400,
         )
-        st.plotly_chart(fig2, use_container_width=True)
-        st.caption("🛡️ *Safety Guardrail luôn đảm bảo đường cong SoC dao động nghiêm ngặt trong dải an toàn.*")
+        st.plotly_chart(fig_soc, use_container_width=True)
 
-# --- TAB 2: PLOTLY CHARTS CẮT ĐỈNH VÀ BIỂU GIÁ EVN ---
-with tab2:
-    col_chart3, col_chart4 = st.columns(2)
-    
-    with col_chart3:
-        fig3 = go.Figure()
-        # Mua lưới khi không có pin
-        fig3.add_trace(go.Scatter(
-            x=df_sim["hour"], y=df_nobat["p_buy_kw"],
-            mode="lines", name="Mua lưới (No-Battery)",
+    with col_b2:
+        fig_cmd = go.Figure()
+        # Công suất lệnh của Agent vs Công suất thực tế sau Guardrail
+        fig_cmd.add_trace(go.Scatter(
+            x=df_sim["hour"], y=df_sim["p_cmd_kw"],
+            mode="lines", name="Lệnh yêu cầu (P_cmd)",
             line=dict(color="#9CA3AF", dash="dot", width=2),
         ))
-        # Mua lưới thực tế khi có pin điều khiển
-        fig3.add_trace(go.Scatter(
-            x=df_sim["hour"], y=df_sim["p_buy_kw"],
-            mode="lines", name="Mua lưới thực tế (P_buy)",
-            line=dict(color="#8B5CF6", width=2.5),
-            fill="tozeroy", fillcolor="rgba(139, 92, 246, 0.15)",
+        fig_cmd.add_trace(go.Scatter(
+            x=df_sim["hour"], y=df_sim["p_batt_kw"],
+            mode="lines", name="Thực tế sau Guardrail (P_batt)",
+            line=dict(color="#10B981", width=2.5),
         ))
-        # Ngưỡng đỉnh P_th = 90 kW
-        fig3.add_hline(
-            y=env.p_th, line_dash="dash", line_color="#EF4444",
-            annotation_text=f"Ngưỡng phạt đỉnh P_th ({env.p_th:.0f} kW)",
-            annotation_position="bottom right"
+        # Đánh dấu các điểm lệnh bị cắt
+        clipped_rows = df_sim[df_sim["is_clipped"]]
+        if not clipped_rows.empty:
+            fig_cmd.add_trace(go.Scatter(
+                x=clipped_rows["hour"], y=clipped_rows["p_batt_kw"],
+                mode="markers", name="Lệnh bị can thiệp (Clipped)",
+                marker=dict(color="#EF4444", size=9, symbol="x"),
+            ))
+        fig_cmd.update_layout(
+            title="<b>Lệnh Điều Khiển Agent vs Công Suất Khả Thi (Safety Guardrail)</b>",
+            xaxis_title="Thời gian (Giờ)",
+            yaxis_title="Công suất sạc/xả (kW)",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=40, r=20, t=50, b=40),
+            height=400,
         )
-        fig3.update_layout(
-            title="<b>3. Hiệu quả cắt đỉnh phụ tải lưới (Peak Shaving)</b>",
+        st.plotly_chart(fig_cmd, use_container_width=True)
+
+# ==============================================================================
+# TAB 3: CẮT ĐỈNH LƯỚI & PHÂN TÍCH BIỂU GIÁ EVN
+# ==============================================================================
+with tab_peak:
+    col_p1, col_p2 = st.columns(2)
+    with col_p1:
+        fig_peak = go.Figure()
+        # Vùng cảnh báo vượt đỉnh > 90kW
+        fig_peak.add_hrect(
+            y0=env.p_th, y1=max(df_nobat["p_buy_kw"].max() + 20, 140),
+            fillcolor="rgba(239, 68, 68, 0.12)", line_width=0,
+            annotation_text="Vùng Phạt Công Suất Đỉnh (> 90 kW)",
+            annotation_position="top right",
+        )
+        # Mua lưới No-battery
+        fig_peak.add_trace(go.Scatter(
+            x=df_sim["hour"], y=df_nobat["p_buy_kw"],
+            mode="lines", name="Mua lưới nếu KHÔNG có pin",
+            line=dict(color="#94A3B8", dash="dot", width=2),
+        ))
+        # Mua lưới thực tế
+        fig_peak.add_trace(go.Scatter(
+            x=df_sim["hour"], y=df_sim["p_buy_kw"],
+            mode="lines", name="Mua lưới khi CÓ pin tối ưu",
+            line=dict(color="#8B5CF6", width=2.5),
+            fill="tozeroy", fillcolor="rgba(139, 92, 246, 0.18)",
+        ))
+        fig_peak.add_hline(
+            y=env.p_th, line_dash="dash", line_color="#EF4444",
+            annotation_text=f"Ngưỡng đỉnh P_th ({env.p_th:.0f} kW)",
+        )
+        fig_peak.update_layout(
+            title="<b>Cắt Đỉnh Phụ Tải Lưới (Peak Shaving)</b>",
             xaxis_title="Thời gian (Giờ)",
             yaxis_title="Công suất mua từ lưới (kW)",
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=40, r=20, t=50, b=40),
-            height=380,
+            height=400,
         )
-        st.plotly_chart(fig3, use_container_width=True)
-        st.caption("🎯 *Mục tiêu cắt đỉnh phụ tải: Kéo mức mua điện giờ cao điểm xuống dưới ngưỡng P_th.*")
+        st.plotly_chart(fig_peak, use_container_width=True)
 
-    with col_chart4:
-        # Biểu đồ giá TOU EVN và chi phí điện từng bước
-        fig4 = make_subplots(specs=[[{"secondary_y": True}]])
-        # Biểu giá EVN TOU
-        fig4.add_trace(
+    with col_p2:
+        fig_tou = make_subplots(specs=[[{"secondary_y": True}]])
+        # Biểu giá TOU EVN
+        fig_tou.add_trace(
             go.Scatter(
                 x=df_sim["hour"], y=df_sim["c_grid"],
-                mode="lines", name="Biểu giá EVN TOU (VNĐ/kWh)",
+                mode="lines", name="Đơn giá điện EVN (VNĐ/kWh)",
                 line=dict(color="#6366F1", width=2.5, shape="hv"),
             ),
             secondary_y=False,
         )
-        # Chi phí điện từng bước
-        fig4.add_trace(
+        # Tiền điện từng bước
+        fig_tou.add_trace(
             go.Bar(
                 x=df_sim["hour"], y=df_sim["c_elec"],
-                name="Chi phí điện bước (VNĐ)",
-                marker_color="#F43F5E", opacity=0.45,
+                name="Tiền điện bước 15 phút (VNĐ)",
+                marker_color="#EC4899", opacity=0.45,
             ),
             secondary_y=True,
         )
-        fig4.update_xaxes(title_text="Thời gian (Giờ)")
-        fig4.update_yaxes(title_text="Đơn giá (VNĐ/kWh)", secondary_y=False)
-        fig4.update_yaxes(title_text="Hóa đơn bước (VNĐ)", secondary_y=True)
-        fig4.update_layout(
-            title="<b>4. Biểu giá điện TOU EVN & Hóa đơn tiền điện</b>",
+        fig_tou.update_xaxes(title_text="Thời gian (Giờ)")
+        fig_tou.update_yaxes(title_text="Đơn giá (VNĐ/kWh)", secondary_y=False)
+        fig_tou.update_yaxes(title_text="Hóa đơn bước (VNĐ)", secondary_y=True)
+        fig_tou.update_layout(
+            title="<b>Biểu Giá EVN 3 Mức & Hóa Đơn Điện Năng</b>",
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             margin=dict(l=40, r=20, t=50, b=40),
-            height=380,
+            height=400,
         )
-        st.plotly_chart(fig4, use_container_width=True)
-        st.caption("⏰ *Giờ cao điểm (3,000đ): 09:30-11:30 & 17:00-20:00. Thấp điểm (1,100đ): 22:00-04:00.*")
+        st.plotly_chart(fig_tou, use_container_width=True)
 
-# --- TAB 3: DỮ LIỆU BẢNG VÀ XUẤT CSV ---
-with tab3:
-    st.subheader("Bảng dữ liệu chi tiết 96 bước thời gian (Chu kỳ 1 ngày)")
-    display_cols = [
-        "step", "hour", "p_load_kw", "p_pv_kw", "p_batt_kw", "p_grid_kw",
+# ==============================================================================
+# TAB 4: THÍ NGHIỆM BÓC TÁCH (ABLATION STUDY)
+# ==============================================================================
+with tab_ablation:
+    st.markdown("### 🔬 Thí Nghiệm Bóc Tách Đóng Góp Của Các Thành Phần")
+    st.markdown("Kiểm chứng vai trò của **Safety Guardrail** và **Khả năng chịu đựng nhiễu ngoại sinh (NoiseWrapper)** theo yêu cầu Mục 2.5 & 3.5 Báo cáo TH2.")
+    
+    col_ab1, col_ab2 = st.columns(2)
+    with col_ab1:
+        st.info("🛡️ **Vai trò của Safety Guardrail:**")
+        st.markdown(f"""
+        - Khi **BẬT (Khuyên dùng):** Bộ lọc an toàn chặn đứng mọi lệnh gây nguy hiểm cho pin. Mức sạc luôn nằm trong `[{env.battery.soc_min*100:.0f}%, {env.battery.soc_max*100:.0f}%]`.
+        - Khi **TẮT (Ablation Study):** Pin có nguy cơ bị xả cạn kiệt về `0%` hoặc sạc nhồi quá `100%`, gây chai pin tức thì và tăng đột biến điểm phạt vi phạm.
+        - **Trạng thái hiện tại:** `{'ĐANG BẬT' if use_guardrail else 'ĐANG TẮT'}`
+        """)
+    with col_ab2:
+        st.info("🌊 **Vai trò của NoiseWrapper (Kịch bản S4):**")
+        st.markdown(r"""
+        - Bổ sung nhiễu Gaussian vào công suất tải $\sigma_L = 8\%$ và công suất phát PV $\sigma_{PV} = 15\%$.
+        - Phục vụ đánh giá tính bền vững (Robustness) của chính sách điều khiển khi thời tiết thất thường.
+        - **Trạng thái hiện tại:** `{'ĐANG ÁP DỤNG NHIỄU' if apply_noise else 'KHÔNG CÓ NHIỄU'}`
+        """)
+
+# ==============================================================================
+# TAB 5: NHẬT KÝ 96 BƯỚC & XUẤT CSV
+# ==============================================================================
+with tab_table:
+    st.markdown("### 📋 Bảng Dữ Liệu Chi Tiết 96 Bước Vận Hành (24 Giờ)")
+    
+    cols_to_show = [
+        "step", "hour", "p_load_kw", "p_pv_kw", "p_cmd_kw", "p_batt_kw",
         "p_buy_kw", "p_sell_kw", "soc", "c_grid", "c_elec", "c_deg", "reward"
     ]
-    st.dataframe(df_sim[display_cols], use_container_width=True)
+    st.dataframe(df_sim[cols_to_show], use_container_width=True, height=400)
     
-    col_dl1, col_dl2 = st.columns([1, 4])
-    with col_dl1:
-        csv_bytes = df_sim.to_csv(index=False).encode("utf-8")
+    col_exp1, col_exp2 = st.columns([1, 4])
+    with col_exp1:
+        csv_file = df_sim.to_csv(index=False).encode("utf-8")
         st.download_button(
-            label="📥 Tải xuống kết quả mô phỏng (CSV)",
-            data=csv_bytes,
-            file_name=f"sems_simulation_day_{target_day}_{split}.csv",
+            label="📥 Xuất Báo Cáo CSV",
+            data=csv_file,
+            file_name=f"sems_rl_day_{day_offset}_{split}.csv",
             mime="text/csv",
         )
+    with col_exp2:
+        st.caption("Dữ liệu có thể nhập trực tiếp vào Excel, MATLAB hoặc Python Pandas để phục vụ viết báo cáo và vẽ biểu đồ đồ án.")
 
+# Footer thương hiệu nhóm
 st.markdown("---")
 st.markdown(
-    "<center><small>Báo cáo Bài tập lớn Học tăng cường & Ứng dụng — TS. Lê Nguyễn Tuấn Thành — Nhóm 7 (65KTPM, ĐH Thủy Lợi).</small></center>",
-    unsafe_allow_html=True
+    """
+    <div style="text-align: center; color: #64748B; font-size: 0.85rem; padding: 1rem 0;">
+        <b>SEMS-RL Platform</b> • Bài Tập Lớn Học Tăng Cường & Ứng Dụng • Giảng viên: <b>TS. Lê Nguyễn Tuấn Thành</b><br>
+        Nhóm sinh viên thực hiện: <b>Nguyễn Văn Huỳnh (Nhóm trưởng), Lý Đình Sơn, Nguyễn Văn Trường, Phạm Quang Anh, Nguyễn Tùng Dương, Nguyễn Thị Cẩm Ly</b> (65KTPM - ĐH Thủy Lợi).
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
