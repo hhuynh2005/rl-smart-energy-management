@@ -112,7 +112,7 @@ export default function SmartHouseSimulation({
   // Mini SVG Sparkline generator for live cards
   const renderSparkline = (getValue, strokeColor, fixedMin = null, fixedMax = null) => {
     if (!timeline || timeline.length === 0) return null;
-    const w = 72;
+    const w = 75;
     const h = 26;
     const values = timeline.map(getValue);
     const min = fixedMin !== null ? fixedMin : Math.min(...values);
@@ -137,13 +137,18 @@ export default function SmartHouseSimulation({
         <svg width={w} height={h} style={{ overflow: 'visible' }}>
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.4" />
+              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.45" />
               <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
             </linearGradient>
           </defs>
-          <polygon points={`${polylineStr} ${w},${h} 0,${h}`} fill={`url(#${gradId})`} />
+          {/* Subtle baseline */}
+          <line x1="0" y1={h - 1} x2={w} y2={h - 1} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+          {/* Area fill */}
+          <polygon points={`${polylineStr} ${w},${h - 1} 0,${h - 1}`} fill={`url(#${gradId})`} />
+          {/* Sparkline curve */}
           <polyline points={polylineStr} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx={curX} cy={curY} r="3" fill="#FFFFFF" stroke={strokeColor} strokeWidth="2" />
+          {/* Highlight dot for current time */}
+          <circle cx={curX} cy={curY} r="3.2" fill="#FFFFFF" stroke={strokeColor} strokeWidth="2" />
         </svg>
         <span style={{ fontSize: '0.62rem', color: '#64748B', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
           24h Trend
@@ -368,7 +373,7 @@ export default function SmartHouseSimulation({
           {renderSparkline((d) => d.p_load_kw, '#3B82F6')}
         </div>
 
-        {/* Battery Telemetry */}
+        {/* Battery Telemetry (Single line value + Status Badge pill, zero wrap) */}
         <div className="live-card">
           <div
             className="live-icon-box"
@@ -380,23 +385,69 @@ export default function SmartHouseSimulation({
             <Battery size={20} />
           </div>
           <div className="live-content">
-            <span className="live-label">Pin BESS (SoC: {stepData.soc_pct.toFixed(0)}%)</span>
-            <span className="live-number" style={{ color: isDischarging ? '#F87171' : '#34D399' }}>
-              {stepData.p_batt_kw > 0 ? `+${stepData.p_batt_kw.toFixed(1)} kW (Sạc)` : stepData.p_batt_kw < 0 ? `${stepData.p_batt_kw.toFixed(1)} kW (Xả)` : '0.0 kW (Nghỉ)'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+              <span className="live-label">Pin BESS ({stepData.soc_pct.toFixed(0)}%)</span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  padding: '0.12rem 0.38rem',
+                  borderRadius: '4px',
+                  background: isDischarging ? 'rgba(239, 68, 68, 0.25)' : isCharging ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.2)',
+                  color: isDischarging ? '#FCA5A5' : isCharging ? '#6EE7B7' : '#94A3B8',
+                  border: `1px solid ${isDischarging ? '#EF4444' : isCharging ? '#10B981' : '#64748B'}`,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {isCharging ? 'Sạc' : isDischarging ? 'Xả' : 'Nghỉ'}
+              </span>
+            </div>
+            <span
+              className="live-number"
+              style={{
+                color: isDischarging ? '#F87171' : isCharging ? '#34D399' : '#94A3B8',
+                whiteSpace: 'nowrap',
+                fontSize: 'clamp(1.0rem, 1.15vw, 1.25rem)',
+              }}
+            >
+              {stepData.p_batt_kw > 0 ? `+${stepData.p_batt_kw.toFixed(1)} kW` : stepData.p_batt_kw < 0 ? `${stepData.p_batt_kw.toFixed(1)} kW` : '0.0 kW'}
             </span>
           </div>
           {renderSparkline((d) => d.soc_pct, '#10B981', 0, 100)}
         </div>
 
-        {/* Grid Telemetry */}
+        {/* Grid Telemetry (Single line value + Status Badge pill, zero wrap) */}
         <div className="live-card">
           <div className="live-icon-box" style={{ background: 'rgba(139, 92, 246, 0.18)', color: '#8B5CF6' }}>
             <Zap size={20} />
           </div>
           <div className="live-content">
-            <span className="live-label">Điện lưới ({stepData.c_grid?.toLocaleString('vi-VN')} đ/kWh)</span>
-            <span className="live-number" style={{ color: '#C4B5FD' }}>
-              {stepData.p_buy_kw > 0 ? `Mua: ${stepData.p_buy_kw.toFixed(1)} kW` : stepData.p_sell_kw > 0 ? `Bán: ${stepData.p_sell_kw.toFixed(1)} kW` : 'Cân bằng (0 kW)'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+              <span className="live-label">Điện lưới ({stepData.c_grid?.toLocaleString('vi-VN')} đ)</span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  padding: '0.12rem 0.38rem',
+                  borderRadius: '4px',
+                  background: stepData.p_buy_kw > 0 ? 'rgba(139, 92, 246, 0.25)' : stepData.p_sell_kw > 0 ? 'rgba(245, 158, 11, 0.25)' : 'rgba(148, 163, 184, 0.2)',
+                  color: stepData.p_buy_kw > 0 ? '#C4B5FD' : stepData.p_sell_kw > 0 ? '#FDE68A' : '#94A3B8',
+                  border: `1px solid ${stepData.p_buy_kw > 0 ? '#8B5CF6' : stepData.p_sell_kw > 0 ? '#F59E0B' : '#64748B'}`,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {stepData.p_buy_kw > 0 ? 'Mua' : stepData.p_sell_kw > 0 ? 'Bán' : 'Cân bằng'}
+              </span>
+            </div>
+            <span
+              className="live-number"
+              style={{
+                color: '#C4B5FD',
+                whiteSpace: 'nowrap',
+                fontSize: 'clamp(1.0rem, 1.15vw, 1.25rem)',
+              }}
+            >
+              {stepData.p_buy_kw > 0 ? `${stepData.p_buy_kw.toFixed(1)} kW` : stepData.p_sell_kw > 0 ? `${stepData.p_sell_kw.toFixed(1)} kW` : '0.0 kW'}
             </span>
           </div>
           {renderSparkline((d) => d.p_grid_kw, '#8B5CF6')}
