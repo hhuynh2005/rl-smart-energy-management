@@ -362,6 +362,77 @@ python train_demo_sb3.py
 ```
 Huấn luyện thử nghiệm 1,000 bước liên tục trên **SAC** và 1,000 bước rời rạc trên **DQN / DDQN**.
 
+### 6.3. Khởi chạy Giao diện Web Hiện Đại Bằng React & FastAPI (Mới nâng cấp)
+Hệ thống giao diện mới được xây dựng bằng **React 18 + Vite + Three.js** kết hợp **FastAPI** backend, bổ sung trang **Digital Twin 3D/2D Căn nhà thông minh & Luồng di chuyển điện mặt trời**:
+
+#### Cách 1: Khởi chạy Máy chủ Toàn diện (Đơn giản nhất - Khuyên dùng)
+Backend FastAPI đã được cấu hình phục vụ sẵn gói giao diện React (`frontend/dist/`), bạn chỉ cần chạy đúng 1 lệnh Python duy nhất:
+```bash
+python server.py
+```
+*(Hoặc dùng đường dẫn venv nếu chưa activate: `.\venv\Scripts\python.exe server.py`)*
+
+👉 Sau đó mở trình duyệt web và truy cập địa chỉ: **`http://localhost:8000`**
+
+---
+
+#### Cách 2: Khởi chạy Chế độ Phát triển Hot-Reload (Dành cho việc chỉnh sửa Frontend)
+Nếu bạn muốn vừa lập trình vừa xem giao diện tự động cập nhật ngay lập tức:
+
+1. **Cài đặt thư viện Frontend** (chỉ cần thực hiện lần đầu tiên):
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. **Mở 2 cửa sổ Terminal song song:**
+   * **Terminal 1 (Backend API):**
+     ```bash
+     python server.py
+     ```
+   * **Terminal 2 (Frontend React Vite Dev Server):**
+     ```bash
+     cd frontend
+     npm run dev
+     ```
+
+3. Truy cập địa chỉ dev của React: **`http://localhost:5173`** (Các yêu cầu API `/api` sẽ tự động được Vite chuyển tiếp sang port 8000).
+
+4. **Khi cần build lại bản tĩnh:**
+   ```bash
+   cd frontend
+   npm run build
+   ```
+
+---
+
+### 6.4. Giao diện Streamlit cũ (Mốc đối chứng thử nghiệm)
+```bash
+streamlit run dashboard.py
+```
+
+### 6.5. Kiểm thử API Backend & Các Kịch bản Vận hành (`test_api.py` & `test_all_scenarios.py`)
+
+> [!IMPORTANT]
+> **LƯU Ý BẮT BUỘC:** Hai file `test_api.py` và `test_all_scenarios.py` là các kịch bản kiểm thử mạng HTTP (End-to-End Test). Do đó, **BẮT BUỘC phải khởi chạy máy chủ `server.py` trước** ở một cửa sổ terminal để cổng `8000` hoạt động, nếu không hệ điều hành sẽ báo lỗi từ chối kết nối (`ConnectionRefusedError: [WinError 10061]`).
+
+**Quy trình kiểm thử chuẩn (mở 2 cửa sổ Terminal song song):**
+1. **Terminal 1:** Khởi động máy chủ API:
+   ```bash
+   python server.py
+   ```
+2. **Terminal 2:** Chạy các lệnh kiểm thử:
+   * Kiểm thử các Endpoint API cơ bản (GET `/`, GET `/api/scenarios`, POST `/api/simulate`):
+     ```bash
+     python test_api.py
+     ```
+   * Kiểm thử tự động trọn gói cả 5 Kịch bản vận hành ($S_1 \to S_5$):
+     ```bash
+     python test_all_scenarios.py
+     ```
+
 ---
 
 *Tài liệu được biên soạn và cập nhật bởi **Nguyễn Văn Huỳnh & Lý Đình Sơn** (Phân hệ Môi trường & Dữ liệu - SEMS-RL).*
+
+
