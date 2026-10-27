@@ -1,0 +1,48 @@
+# Cấu hình hệ thống Quản lý Năng lượng Thông minh (SEMS-RL)
+# Dựa trên Báo cáo Thực hành 2 - Nhóm 7 (TS. Lê Nguyễn Tuấn Thành - 65KTPM)
+# Đề tài: Điều khiển tối ưu pin lưu trữ BESS và Solar PV bằng RL (chuẩn CityLearn / Gymnasium)
+
+system:
+  delta_t: 0.25               # Bước thời gian: 15 phút = 0.25 giờ
+  episode_steps: 96           # 96 bước/ngày (24h * 4)
+  gamma: 0.99                 # Hệ số chiết khấu
+  p_th: 90.0                  # Ngưỡng công suất đỉnh lưới (kW) dùng cho Peak Shaving
+  p_pv_rated: 150.0           # Công suất PV định mức (kWp)
+  p_load_peak_nominal: 120.0  # Công suất tải đỉnh danh định (kW)
+  c_feed_in: 600.0            # Đơn giá bán điện ngược lên lưới (VNĐ/kWh)
+
+battery:
+  e_cap: 200.0                # Dung lượng danh định của BESS (kWh)
+  p_charge_max: 50.0          # Công suất nạp tối đa (kW, 0.25C)
+  p_discharge_max: 50.0       # Công suất xả tối đa (kW, 0.25C)
+  eta_c: 0.92                 # Hiệu suất nạp
+  eta_d: 0.92                 # Hiệu suất xả
+  soc_min: 0.20               # Ngưỡng SoC tối thiểu an toàn (20%)
+  soc_max: 0.90               # Ngưỡng SoC tối đa an toàn (90%)
+  soc_init_low: 0.30          # SoC khởi tạo tối thiểu: U(0.3, 0.7)
+  soc_init_high: 0.70         # SoC khởi tạo tối đa
+  c_bat: 3000000.0            # Chi phí đầu tư pin (VNĐ/kWh)
+  n_cycle: 4000               # Số chu kỳ sống ở DoD định mức
+  dod: 0.80                   # Độ sâu xả (Depth of Discharge) định mức
+
+reward:
+  w1_wear: 1.0                # Trọng số chi phí hao mòn pin (Cdeg)
+  w2_peak: 1.0                # Trọng số phạt công suất đỉnh (Cpeak)
+  w3_viol: 10.0               # Trọng số phạt vi phạm khi lệnh bị Safety Guardrail cắt (Pviol)
+  use_guardrail: true         # Bật/tắt Safety Guardrail (dùng cho Ablation Study)
+
+tou_tariff:
+  # Biểu giá điện TOU của EVN (VNĐ/kWh)
+  peak: 3000.0                # Cao điểm: 09:30-11:30 & 17:00-20:00 (Thứ 2 - Thứ 7)
+  normal: 1800.0              # Bình thường: Các khung giờ còn lại
+  off_peak: 1100.0            # Thấp điểm: 22:00-04:00 (Tất cả các ngày)
+
+data:
+  file_path: "data/processed.csv"
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+noise:
+  sigma_load: 0.05            # Độ lệch chuẩn nhiễu tải Gaussian (kịch bản S4)
+  sigma_pv: 0.10              # Độ lệch chuẩn nhiễu PV Gaussian (kịch bản S4)
