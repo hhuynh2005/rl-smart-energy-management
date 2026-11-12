@@ -100,70 +100,70 @@ export default function App() {
         scenarioName={config.scenario}
       />
 
-      {/* 2. Main Layout (Sidebar + Content Area) */}
-      <div className="main-layout">
-        {/* Left Sidebar Controls */}
-        <SidebarControls
-          config={config}
-          setConfig={setConfig}
-          metadata={metadata}
-          onSimulate={runSimulation}
-          isLoading={isLoading}
-        />
+      {/* 2. Main Layout */}
+      {activeTab === 'house' ? (
+        <div style={{ width: '100%', height: 'calc(100vh - 58px)', position: 'relative' }}>
+          <iframe
+            src="/campus.html"
+            title="Khuôn viên Đại học Thủy Lợi 3D Digital Twin"
+            style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          />
+        </div>
+      ) : (
+        <div className="main-layout">
+          {/* Left Sidebar Controls */}
+          <SidebarControls
+            config={config}
+            setConfig={setConfig}
+            metadata={metadata}
+            onSimulate={runSimulation}
+            isLoading={isLoading}
+          />
 
-        {/* Right Content Area */}
-        <main className="content-area">
-          {error && (
-            <div
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                border: '1px solid #EF4444',
-                color: '#F87171',
-                padding: '0.75rem 1rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-              }}
-            >
-              ⚠️ {error} — Vui lòng đảm bảo backend server (`server.py`) đang chạy trên cổng 8000.
-            </div>
-          )}
+          {/* Right Content Area */}
+          <main className="content-area">
+            {error && (
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid #EF4444',
+                  color: '#F87171',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                }}
+              >
+                ⚠️ {error} — Vui lòng đảm bảo backend server (`server.py`) đang chạy trên cổng 8080 hoặc 8000.
+              </div>
+            )}
 
-          {/* Top KPI Cards (Always visible for instant executive feedback) */}
-          <KpiCards metrics={metrics} policyMode={config.policyMode} />
+            {/* Top KPI Cards (Always visible for instant executive feedback) */}
+            <KpiCards metrics={metrics} policyMode={config.policyMode} />
 
-          {/* Tab 1: Smart House & Solar Flow Digital Twin */}
-          {activeTab === 'house' && (
-            <SmartHouseSimulation
-              timeline={timeline}
-              currentStep={currentStep}
-              setCurrentStep={setCurrentStep}
-              specs={metadata?.specs}
-            />
-          )}
+            {/* Tab 2: Analytics Charts Dashboard (Plotly parity) */}
+            {activeTab === 'dashboard' && (
+              <AnalyticsCharts
+                timeline={timeline}
+                pTh={pTh}
+                currentStep={currentStep}
+                onSelectStep={(idx) => setCurrentStep(idx)}
+              />
+            )}
 
-          {/* Tab 2: Analytics Charts Dashboard (Plotly parity) */}
-          {activeTab === 'dashboard' && (
-            <AnalyticsCharts
-              timeline={timeline}
-              pTh={pTh}
-              currentStep={currentStep}
-              onSelectStep={(idx) => setCurrentStep(idx)}
-            />
-          )}
-
-          {/* Tab 3: Detailed 96-Step Data Table & CSV Download */}
-          {activeTab === 'table' && (
-            <DataTableTab
-              timeline={timeline}
-              currentStep={currentStep}
-              onSelectStep={(idx) => setCurrentStep(idx)}
-              scenario={config.scenario}
-              split={config.split}
-              targetDay={config.targetDay}
-            />
-          )}
-        </main>
-      </div>
+            {/* Tab 3: Detailed 96-Step Data Table & CSV Download */}
+            {activeTab === 'table' && (
+              <DataTableTab
+                timeline={timeline}
+                currentStep={currentStep}
+                onSelectStep={(idx) => setCurrentStep(idx)}
+                scenario={config.scenario}
+                split={config.split}
+                targetDay={config.targetDay}
+              />
+            )}
+          </main>
+        </div>
+      )}
 
       {/* Documentation Modal */}
       <DocModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />

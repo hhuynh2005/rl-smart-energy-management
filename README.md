@@ -363,7 +363,10 @@ python train_demo_sb3.py
 Huấn luyện thử nghiệm 1,000 bước liên tục trên **SAC** và 1,000 bước rời rạc trên **DQN / DDQN**.
 
 ### 6.3. Khởi chạy Giao diện Web Hiện Đại Bằng React & FastAPI (Mới nâng cấp)
-Hệ thống giao diện mới được xây dựng bằng **React 18 + Vite + Three.js** kết hợp **FastAPI** backend, bổ sung trang **Digital Twin 3D/2D Căn nhà thông minh & Luồng di chuyển điện mặt trời**:
+Hệ thống giao diện mới được xây dựng bằng **React + Vite + Three.js** kết hợp **FastAPI** backend, trang bị mô hình **Digital Twin 3D Khuôn viên Trường Đại học Thủy Lợi (Hệ thống SEMS-RL Mái Tòa K1 - Khoa CNTT)** dựng chính xác theo sơ đồ mặt bằng thực tế:
+* **Toàn cảnh 3D khuôn viên Thủy Lợi:** Tòa A1 (vòng xoay, phiến đá tên trường, cột cờ, biểu tượng 65 năm), Tòa A2, Tòa A3, Tòa A4, Tòa A5, Thư viện, Tòa T45, Sân bóng đá (với 22 cầu thủ, bóng lăn và dàn đèn pha ban đêm), Bể bơi, Sân thể thao, Cổng trước & Cổng sau với Logo trường.
+* **Hệ thống SEMS-RL Tòa K1 (Khoa CNTT):** Dàn pin mặt trời Solar PV 150 kWp, cụm 2 Container pin BESS 200 kWh với dải LED trạng thái nạp/xả, Trạm biến áp & Trụ điện cao thế, các luồng hạt năng lượng 3D động và bảng thẻ thông số đo tức thời.
+* **Chế độ quan sát đa dạng:** Toàn cảnh (Orbit), Vệ tinh từ trên xuống (Satellite), Đi bộ góc nhìn thứ nhất (Walk - WASD/Phím mũi tên với va chạm tòa nhà), Bản đồ thu nhỏ Minimap 2D tương tác.
 
 #### Cách 1: Khởi chạy Máy chủ Toàn diện (Đơn giản nhất - Khuyên dùng)
 Backend FastAPI đã được cấu hình phục vụ sẵn gói giao diện React (`frontend/dist/`), bạn chỉ cần chạy đúng 1 lệnh Python duy nhất:
@@ -372,7 +375,9 @@ python server.py
 ```
 *(Hoặc dùng đường dẫn venv nếu chưa activate: `.\venv\Scripts\python.exe server.py`)*
 
-👉 Sau đó mở trình duyệt web và truy cập địa chỉ: **`http://localhost:8000`**
+👉 Sau đó mở trình duyệt web và truy cập:
+* **Giao diện Dashboard Quản lý Năng lượng:** **`http://localhost:8000`**
+* **Giao diện 3D Khuôn viên Thủy Lợi Toàn màn hình:** **`http://localhost:8000/campus`** (hoặc `http://localhost:8000/campus-3d`)
 
 ---
 

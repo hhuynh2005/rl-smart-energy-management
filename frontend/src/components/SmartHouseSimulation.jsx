@@ -253,7 +253,7 @@ export default function SmartHouseSimulation({
               id="btn-toggle-3d"
             >
               <Box size={13} />
-              <span>3D Không Gian</span>
+              <span>3D Khuôn Viên Thủy Lợi</span>
             </button>
             <button
               className={`view-btn ${viewMode === '2D' ? 'active' : ''}`}
@@ -261,7 +261,7 @@ export default function SmartHouseSimulation({
               id="btn-toggle-2d"
             >
               <Layers size={13} />
-              <span>2D Mặt Cắt</span>
+              <span>2D Sơ Đồ Khối</span>
             </button>
           </div>
         </div>
@@ -306,11 +306,11 @@ export default function SmartHouseSimulation({
               </text>
             </g>
 
-            {/* 2. Smart House Load (Center) */}
+            {/* 2. Building K1 Load (Center) */}
             <g transform="translate(420, 180)">
               <polygon points="110,0 20,60 200,60" fill="#3B82F6" opacity="0.8" />
               <rect x="20" y="60" width="180" height="140" rx="6" fill="#1E293B" stroke="#60A5FA" strokeWidth="2" />
-              <text x="110" y="105" fill="#60A5FA" fontSize="14" fontWeight="800" textAnchor="middle">PHỤ TẢI NHÀ</text>
+              <text x="110" y="105" fill="#60A5FA" fontSize="14" fontWeight="800" textAnchor="middle">PHỤ TẢI TÒA K1</text>
               <text x="110" y="145" fill="#FFFFFF" fontSize="22" fontWeight="900" textAnchor="middle" fontFamily="monospace">
                 {stepData.p_load_kw.toFixed(1)} kW
               </text>
@@ -351,7 +351,7 @@ export default function SmartHouseSimulation({
             <Sun size={20} />
           </div>
           <div className="live-content">
-            <span className="live-label">Quang điện Solar PV</span>
+            <span className="live-label">Quang điện Mái K1 (PV)</span>
             <span className="live-number" style={{ color: '#FBBF24' }}>
               {stepData.p_pv_kw.toFixed(1)} <small style={{ fontSize: '0.75rem', color: '#94A3B8' }}>kW</small>
             </span>
@@ -359,13 +359,13 @@ export default function SmartHouseSimulation({
           {renderSparkline((d) => d.p_pv_kw, '#F59E0B', 0, 150)}
         </div>
 
-        {/* House Load Telemetry */}
+        {/* Building K1 Load Telemetry */}
         <div className="live-card">
           <div className="live-icon-box" style={{ background: 'rgba(59, 130, 246, 0.18)', color: '#3B82F6' }}>
             <Home size={20} />
           </div>
           <div className="live-content">
-            <span className="live-label">Phụ tải Căn nhà (P_load)</span>
+            <span className="live-label">Phụ tải Tòa K1 (P_load)</span>
             <span className="live-number" style={{ color: '#60A5FA' }}>
               {stepData.p_load_kw.toFixed(1)} <small style={{ fontSize: '0.75rem', color: '#94A3B8' }}>kW</small>
             </span>

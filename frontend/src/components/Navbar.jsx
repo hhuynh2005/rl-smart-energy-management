@@ -1,5 +1,5 @@
 import React from 'react';
-import { Zap, Activity, Home, BarChart2, Table, BookOpen, SunMedium, ChevronDown } from 'lucide-react';
+import { Zap, Activity, Building2, BarChart2, Table, BookOpen, SunMedium, ChevronDown, ExternalLink, Home } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioName }) {
   return (
@@ -33,8 +33,8 @@ export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioNa
           onClick={() => setActiveTab('house')}
           id="tab-btn-house"
         >
-          <Home size={15} />
-          <span>Mô Phỏng Căn Nhà & Dòng Điện</span>
+          <Building2 size={15} />
+          <span>Khuôn Viên Thủy Lợi 3D (Tòa K1)</span>
         </button>
         <button
           className={`nav-tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
@@ -60,6 +60,17 @@ export default function Navbar({ activeTab, setActiveTab, onOpenDocs, scenarioNa
           <BookOpen size={15} />
           <span>Báo Cáo TH2 (MDP)</span>
         </button>
+        <a
+          href="/campus"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nav-tab-btn"
+          title="Mở giao diện 3D khuôn viên toàn màn hình trong tab mới"
+          style={{ textDecoration: 'none' }}
+        >
+          <ExternalLink size={15} />
+          <span>Bản 3D Toàn Cảnh</span>
+        </a>
       </nav>
 
       {/* 3. User Admin Profile (Right) */}
