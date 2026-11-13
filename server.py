@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from sems_rl.envs.microgrid_env import MicrogridBessEnv
@@ -403,6 +403,20 @@ def export_csv(req: SimulationRequest):
     )
 
 
+@app.get("/campus", response_class=HTMLResponse)
+@app.get("/campus-3d", response_class=HTMLResponse)
+@app.get("/thuyloi3d", response_class=HTMLResponse)
+def get_campus_3d():
+    """Phục vụ trực tiếp giao diện 3D Khuôn viên Đại học Thủy Lợi."""
+    campus_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Khuôn viên Thủy Lợi 3D.html")
+    if not os.path.exists(campus_path):
+        campus_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "public", "campus.html")
+    if os.path.exists(campus_path):
+        with open(campus_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    raise HTTPException(status_code=404, detail="Không tìm thấy file giao diện Khuôn viên Thủy Lợi 3D")
+
+
 from fastapi.staticfiles import StaticFiles
 
 # Phục vụ giao diện React đã build (Single command mode: chỉ cần chạy python server.py)
@@ -413,6 +427,32 @@ if os.path.exists(frontend_dist):
 
 if __name__ == "__main__":
     import uvicorn
-    print("Khởi chạy SEMS-RL API & Web App trên http://localhost:8000 ...")
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    import socket
+    import sys
+
+    # Cho phép người dùng tùy chọn cổng qua tham số dòng lệnh: python server.py [cổng]
+    target_port = 8000
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        target_port = int(sys.argv[1])
+    else:
+        # Tự động kiểm tra cổng xem có bị Nginx / tiến trình khác chiếm dụng trên 127.0.0.1 không
+        for candidate in [8000, 8080, 8001, 8888]:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("127.0.0.1", candidate))
+                    target_port = candidate
+                    break
+                except OSError:
+                    continue
+
+    url = f"http://localhost:{target_port}"
+    print("=" * 65)
+    print("🚀 SEMS-RL MICROGRID & DIGITAL TWIN ĐẠI HỌC THỦY LỢI")
+    if target_port != 8000:
+        print(f"   ℹ️  Lưu ý: Cổng 8000 bị Nginx/dịch vụ khác chiếm, tự động chuyển sang cổng {target_port}!")
+    print(f"   📍 Dashboard chính (React):   {url}")
+    print(f"   🏛️  Khuôn viên 3D (Toàn màn hình): {url}/campus")
+    print(f"   ⚙️  API Swagger Docs:          {url}/docs")
+    print("=" * 65)
+    uvicorn.run(app, host="0.0.0.0", port=target_port)
 

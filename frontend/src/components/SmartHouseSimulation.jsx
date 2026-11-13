@@ -145,6 +145,26 @@ export default function SmartHouseSimulation({
               </button>
             ))}
           </div>
+
+          {/* 3D / 2D View Mode Toggle */}
+          <div className="view-mode-toggle">
+            <button
+              className={`view-btn ${viewMode === '3D' ? 'active' : ''}`}
+              onClick={() => setViewMode('3D')}
+              id="btn-toggle-3d"
+            >
+              <Box size={13} />
+              <span>3D Không Gian</span>
+            </button>
+            <button
+              className={`view-btn ${viewMode === '2D' ? 'active' : ''}`}
+              onClick={() => setViewMode('2D')}
+              id="btn-toggle-2d"
+            >
+              <Layers size={13} />
+              <span>2D Mặt Cắt</span>
+            </button>
+          </div>
         </div>
       </div>
 

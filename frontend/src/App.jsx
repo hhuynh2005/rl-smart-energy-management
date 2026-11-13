@@ -243,175 +243,59 @@ export default function App() {
             isLoading={isLoading}
           />
 
-          {/* Top-right Live 2D Minimap + FPS Pill */}
-          <CampusMinimap />
-
-          {/* Bottom-right Building & Microgrid Device Inspector */}
-          <InspectorCard
-            stepData={interpolatedStep}
-            specs={metadata?.specs}
-            isDockExpanded={isDockExpanded}
-          />
-
-          {/* Compact 1-row Bottom KPI & Telemetry Dock */}
-          <BottomTelemetryDock
-            stepData={interpolatedStep}
-            discreteStep={discreteStep}
-            metrics={metrics}
-            policyMode={config.policyMode}
-            timeline={timeline}
-            currentStep={currentStep}
-            isExpanded={isDockExpanded}
-            onToggleExpand={() => setIsDockExpanded((v) => !v)}
-          />
-
-          {/* Bottom-center Dark Translucent Interaction Hint Pill & Preset Toast */}
-          <BottomHintBar />
-        </>
-      ) : (
-        <main className="subview-shell">
+        {/* Right Content Area */}
+        <main className="content-area">
           {error && (
             <div
               style={{
-                background: 'rgba(220, 38, 38, 0.10)',
-                border: '1px solid rgba(220, 38, 38, 0.45)',
-                color: '#B91C1C',
-                padding: '0.55rem 0.85rem',
-                borderRadius: '10px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid #EF4444',
+                color: '#F87171',
+                padding: '0.75rem 1rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
               }}
             >
               ⚠️ {error} — Vui lòng đảm bảo backend server (`server.py`) đang chạy trên cổng 8000.
             </div>
           )}
 
-          {/* Compact Simulation Controls Strip for 2D / Charts / Data Table */}
-          <div className="subview-config-strip">
-            <div className="subview-field">
-              <span>Kịch bản:</span>
-              <select
-                className="select-control"
-                style={{ width: 'auto', minWidth: '210px' }}
-                value={config.scenario}
-                onChange={handleSubviewScenarioChange}
-              >
-                <option value="S1: Ngày làm việc điển hình (Typical Weekday)">S1: Ngày làm việc</option>
-                <option value="S2: Ngày cuối tuần (Weekend - Tải thấp, không giờ cao điểm)">S2: Cuối tuần</option>
-                <option value="S3: Ngày nhiều mây (Cloudy Day - PV giảm 50%)">S3: Nhiều mây</option>
-                <option value="S4: Thử độ bền với Nhiễu (Robustness Test - NoiseWrapper)">S4: Thử nhiễu</option>
-                <option value="S5: Tùy chọn ngày tự do (Custom Date Picker)">S5: Tùy chọn ngày</option>
-              </select>
-            </div>
-
-            {config.scenario.startsWith('S5:') && (
-              <>
-                <div className="subview-field">
-                  <span>Tập:</span>
-                  <select
-                    className="select-control"
-                    style={{ width: 'auto' }}
-                    value={config.split}
-                    onChange={(e) => setConfig({ ...config, split: e.target.value, targetDay: 0 })}
-                  >
-                    <option value="test">Test</option>
-                    <option value="val">Val</option>
-                    <option value="train">Train</option>
-                  </select>
-                </div>
-                <div className="subview-field">
-                  <span>Ngày {config.targetDay}:</span>
-                  <input
-                    type="range"
-                    className="slider-orange"
-                    style={{ width: '90px' }}
-                    min={0}
-                    max={Math.max(0, maxDays - 1)}
-                    value={config.targetDay}
-                    onChange={(e) => setConfig({ ...config, targetDay: parseInt(e.target.value, 10) })}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="subview-field">
-              <span>Chiến lược Pin:</span>
-              <select
-                className="select-control"
-                style={{ width: 'auto' }}
-                value={config.policyMode}
-                onChange={(e) => setConfig({ ...config, policyMode: e.target.value })}
-              >
-                <option value="rbc">Rule-Based (Chuyên gia)</option>
-                <option value="nobat">No-Battery (Đối chuẩn)</option>
-                <option value="custom">Interactive Schedule</option>
-              </select>
-            </div>
-
-            <div className="subview-field">
-              <span>SoC đầu: {(config.initialSoc * 100).toFixed(0)}%</span>
-              <input
-                type="range"
-                className="slider-orange"
-                style={{ width: '80px' }}
-                min={0.2}
-                max={0.9}
-                step={0.05}
-                value={config.initialSoc}
-                onChange={(e) => setConfig({ ...config, initialSoc: parseFloat(e.target.value) })}
-              />
-            </div>
-
-            <button
-              className="btn-simulate"
-              style={{ width: 'auto', marginLeft: 'auto', padding: '0.45rem 0.9rem' }}
-              onClick={runSimulation}
-              disabled={isLoading}
-            >
-              <RefreshCw size={14} className={isLoading ? 'spin-anim' : ''} />
-              <span>{isLoading ? 'Đang chạy...' : 'Chạy mô phỏng'}</span>
-            </button>
-          </div>
-
+          {/* Top KPI Cards (Always visible for instant executive feedback) */}
           <KpiCards metrics={metrics} policyMode={config.policyMode} />
 
-          {activeTab === 'house' && viewMode === '2D' && (
+          {/* Tab 1: Smart House & Solar Flow Digital Twin */}
+          {activeTab === 'house' && (
             <SmartHouseSimulation
               timeline={timeline}
               currentStep={currentStep}
-              currentMinute={currentMinute}
-              onChangeMinute={handleChangeMinute}
-              onSelectStep={handleSelectStep}
-              isPlaying={isPlaying}
-              onTogglePlay={handleTogglePlay}
-              playbackSpeed={playbackSpeed}
-              setPlaybackSpeed={setPlaybackSpeed}
-              stepData={interpolatedStep}
-              discreteStep={discreteStep}
+              setCurrentStep={setCurrentStep}
+              specs={metadata?.specs}
             />
           )}
 
+          {/* Tab 2: Analytics Charts Dashboard (Plotly parity) */}
           {activeTab === 'dashboard' && (
             <AnalyticsCharts
               timeline={timeline}
               pTh={pTh}
               currentStep={currentStep}
-              onSelectStep={handleSelectStep}
+              onSelectStep={(idx) => setCurrentStep(idx)}
             />
           )}
 
+          {/* Tab 3: Detailed 96-Step Data Table & CSV Download */}
           {activeTab === 'table' && (
             <DataTableTab
               timeline={timeline}
               currentStep={currentStep}
-              onSelectStep={handleSelectStep}
+              onSelectStep={(idx) => setCurrentStep(idx)}
               scenario={config.scenario}
               split={config.split}
               targetDay={config.targetDay}
             />
           )}
         </main>
-      )}
+      </div>
 
       <DocModal isOpen={isDocsOpen} onClose={() => setIsDocsOpen(false)} />
     </div>
