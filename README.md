@@ -19,6 +19,8 @@
 
 ## 1. Giới thiệu đề tài & Kiến trúc tổng thể
 
+**Phần SAC của Nguyễn Văn Trường:** xem [hướng dẫn đọc mã, huấn luyện, kiểm thử và ghi chú bàn giao cho Dương](docs/SAC_NGUYEN_VAN_TRUONG.md). Mã tự viết ở `sems_rl/agents/sac.py`; chạy bằng `train_sac.py` và `evaluate_sac.py`.
+
 Dự án **SEMS-RL** xây dựng hệ thống điều khiển thông minh lịch nạp/xả của hệ thống pin lưu trữ năng lượng (**BESS** - 200 kWh / 50 kW) kết hợp nguồn điện mặt trời áp mái (**Solar PV** - 150 kWp) và lưới điện quốc gia EVN theo biểu giá 3 mức (**TOU** - Time of Use).
 
 Môi trường mô phỏng **`MicrogridBessEnv`** được thiết kế theo chuẩn **Gymnasium API**, kế thừa triết lý từ dự án quốc tế **CityLearn** (LF Energy / NREL) nhưng được tùy biến chuyên sâu cho dữ liệu Việt Nam.
