@@ -5,6 +5,7 @@ Theo van Hasselt và cộng sự (2015) và Wang và cộng sự (2015); mạng 
 theo mã giả Thuật toán 4 trong báo cáo TH2.
 """
 
+from copy import deepcopy
 from dataclasses import dataclass
 
 import numpy as np
@@ -83,3 +84,127 @@ class DuelingQNetwork(nn.Module):
         value, advantage = self.heads(observations)
         # Trừ trung bình A để V và A xác định duy nhất (Wang và cộng sự, công thức 9).
         return value + advantage - advantage.mean(dim=-1, keepdim=True)
+
+
+class ReplayBuffer:
+    """Bộ nhớ vòng lưu chỉ số hành động k (không lưu lệnh liên tục)."""
+
+    def __init__(self, config, seed=0):
+        self.capacity = config.buffer_size
+        self.observations = np.empty((self.capacity, config.observation_dim), np.float32)
+        self.actions = np.empty((self.capacity, 1), np.int64)
+        self.rewards = np.empty((self.capacity, 1), np.float32)
+        self.next_observations = np.empty_like(self.observations)
+        self.terminated = np.empty((self.capacity, 1), np.float32)
+        self.position = 0
+        self.size = 0
+        self.rng = np.random.default_rng(seed)
+
+    def add(self, observation, action_index, reward, next_observation, terminated):
+        i = self.position
+        self.observations[i] = observation
+        self.actions[i] = int(action_index)
+        self.rewards[i] = reward
+        self.next_observations[i] = next_observation
+        # Chỉ terminated tắt bootstrap; truncated (hết ngày) không được lưu ở đây.
+        self.terminated[i] = terminated
+        self.position = (i + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
+
+    def sample(self, batch_size, device):
+        if self.size < batch_size:
+            raise ValueError("Replay buffer chưa đủ trải nghiệm để lấy một batch.")
+        indices = self.rng.integers(self.size, size=batch_size)
+        arrays = (
+            self.observations, self.actions, self.rewards,
+            self.next_observations, self.terminated,
+        )
+        return tuple(torch.as_tensor(x[indices], device=device) for x in arrays)
+
+
+class DDQNAgent:
+    """Bộ điều khiển DDQN; predict trả hành động LIÊN TỤC giống SAC để dùng chung đánh giá."""
+
+    def __init__(self, config=None, seed=0, device="cpu"):
+        self.config = config or DDQNConfig()
+        self.device = torch.device(device)
+        self.seed = seed
+        torch.manual_seed(seed)
+        if self.device.type == "cuda":
+            torch.cuda.manual_seed_all(seed)
+        self.online = DuelingQNetwork(self.config).to(self.device)
+        self.target = deepcopy(self.online).requires_grad_(False)
+        self.optimizer = torch.optim.Adam(
+            self.online.parameters(), lr=self.config.learning_rate
+        )
+        self.action_grid = build_action_grid(self.config.num_actions)
+        self.rng = np.random.default_rng(seed)
+        self.buffer = ReplayBuffer(self.config, seed)
+        self.update_count = 0
+
+    def epsilon(self, step):
+        """ε giảm tuyến tính theo bước môi trường TOÀN CỤC, rồi giữ epsilon_end."""
+        c = self.config
+        fraction = step / c.epsilon_decay_steps
+        if fraction >= 1.0:
+            return c.epsilon_end  # giữ đúng giá trị, tránh sai số 1 - 0.95
+        return max(c.epsilon_end, c.epsilon_start - (c.epsilon_start - c.epsilon_end) * fraction)
+
+    def action_value(self, k):
+        return float(self.action_grid[int(k)])
+
+    def _observations(self, observation):
+        values = np.asarray(observation, dtype=np.float32)
+        if values.ndim not in (1, 2) or values.shape[-1] != self.config.observation_dim:
+            raise ValueError("Quan sát phải có dạng (observation_dim,) hoặc (batch, observation_dim).")
+        if not np.isfinite(values).all():
+            raise ValueError("Quan sát chứa NaN hoặc vô cực.")
+        single = values.ndim == 1
+        tensor = torch.as_tensor(values, device=self.device)
+        return (tensor.unsqueeze(0) if single else tensor), single
+
+    def _greedy(self, observation):
+        observations, single = self._observations(observation)
+        with torch.no_grad():
+            indices = self.online(observations).argmax(dim=-1).cpu().numpy()
+        return indices, single
+
+    def select_action_index(self, observation, epsilon=0.0):
+        """ε-greedy trên một quan sát; argmax lấy chỉ số nhỏ nhất khi hòa."""
+        if self.rng.random() < epsilon:
+            return int(self.rng.integers(self.config.num_actions))
+        indices, _ = self._greedy(observation)
+        return int(indices[0])
+
+    def q_values(self, observation):
+        observations, _ = self._observations(observation)
+        with torch.no_grad():
+            return self.online(observations)[0].cpu().numpy()
+
+    def explain(self, observation):
+        """Q(s,k) cho mọi k, cùng V(s) và A(s,k) nếu là Dueling — dùng cho 3D và dashboard."""
+        observations, _ = self._observations(observation)
+        with torch.no_grad():
+            q = self.online(observations)[0].cpu().numpy()
+            value = advantages = None
+            if self.config.dueling:
+                v, a = self.online.heads(observations)
+                value = float(v[0, 0])
+                advantages = a[0].cpu().numpy().astype(float).tolist()
+        return {
+            "q_values": q.astype(float).tolist(), "v_value": value,
+            "advantages": advantages, "chosen_k": int(np.argmax(q)),
+        }
+
+    def predict(self, observation, deterministic=True):
+        """Trả (action, None) như SB3; một quan sát -> shape (1,), float32, thuộc action_grid."""
+        if deterministic:
+            indices, single = self._greedy(observation)
+        else:
+            observations, single = self._observations(observation)
+            indices = np.array([
+                self.select_action_index(row, self.config.epsilon_end)
+                for row in observations.cpu().numpy()
+            ])
+        actions = self.action_grid[indices].reshape(-1, 1).astype(np.float32)
+        return (actions[0] if single else actions), None
