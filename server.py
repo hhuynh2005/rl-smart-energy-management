@@ -57,6 +57,68 @@ def get_env() -> MicrogridBessEnv:
     return _global_env
 
 
+# Checkpoint DDQN dùng cho policy_mode="ddqn" (Lý Đình Sơn). Đổi bằng biến môi trường
+# SEMS_DDQN_CHECKPOINT; mặc định là mô hình tốt nhất của seed 0.
+DEFAULT_DDQN_CHECKPOINT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "runs", "ddqn", "ddqn_seed0", "best.pt"
+)
+_ddqn_cache: Dict[Any, Any] = {}
+
+
+def get_ddqn_agent():
+    """Nạp checkpoint DDQN (cache theo đường dẫn + thời điểm sửa file).
+
+    Thiếu hoặc hỏng thì báo lỗi rõ; KHÔNG thay bằng luật cứng để tránh trình diễn sai.
+    """
+    from sems_rl.agents.ddqn import DDQNAgent
+
+    path = os.environ.get("SEMS_DDQN_CHECKPOINT", DEFAULT_DDQN_CHECKPOINT)
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Chưa có checkpoint DDQN: {path}. Hãy huấn luyện bằng train_ddqn.py "
+                   "hoặc đặt biến môi trường SEMS_DDQN_CHECKPOINT.",
+        )
+    key = (os.path.abspath(path), os.stat(path).st_mtime_ns)
+    if key not in _ddqn_cache:
+        try:
+            _ddqn_cache[key] = DDQNAgent.load(path)
+        except Exception as error:
+            raise HTTPException(
+                status_code=404, detail=f"Không đọc được checkpoint DDQN {path}: {error}"
+            ) from error
+    return _ddqn_cache[key]
+
+
+def round_ddqn_explanation(explanation: Dict[str, Any]) -> Dict[str, Any]:
+    advantages = explanation["advantages"]
+    value = explanation["v_value"]
+    return {
+        "q_values": [round(q, 4) for q in explanation["q_values"]],
+        "v_value": None if value is None else round(value, 4),
+        "advantages": None if advantages is None else [round(a, 4) for a in advantages],
+        "chosen_k": explanation["chosen_k"],
+    }
+
+
+def flatten_timeline(timeline: List[Dict[str, Any]]) -> pd.DataFrame:
+    """Bảng phẳng cho CSV: tách flows và ddqn (q/adv từng mức) thành cột riêng."""
+    rows = []
+    for step in timeline:
+        row = {key: value for key, value in step.items() if key not in ("flows", "ddqn")}
+        row.update(step.get("flows") or {})
+        ddqn = step.get("ddqn")
+        if ddqn is not None:
+            row["ddqn_chosen_k"] = ddqn["chosen_k"]
+            row["ddqn_v_value"] = ddqn["v_value"]
+            for i, q in enumerate(ddqn["q_values"]):
+                row[f"ddqn_q_{i}"] = q
+            for i, a in enumerate(ddqn["advantages"] or []):
+                row[f"ddqn_adv_{i}"] = a
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 class SimulationRequest(BaseModel):
     scenario: str = Field(default="S1: Ngày làm việc điển hình (Typical Weekday)")
     split: str = Field(default="test")
@@ -261,13 +323,20 @@ def simulate(req: SimulationRequest):
     obs, info = sim_env.reset(options={"day_offset": target_day, "split": split, "initial_soc": req.initial_soc})
     rbc = RuleBasedController(p_th=env.p_th)
     sim_history = []
+    ddqn_trace = []
     step_idx = 0
-    
+    ddqn_agent = get_ddqn_agent() if req.policy_mode == "ddqn" else None
+
     while True:
         if req.policy_mode == "nobat" or "No-Battery" in req.policy_mode:
             action = np.array([0.0], dtype=np.float32)
         elif req.policy_mode == "rbc" or "Rule-Based" in req.policy_mode:
             action = rbc.select_action(obs, info)
+        elif ddqn_agent is not None:
+            # Quyết định thật của DDQN: k = argmax Q(s,k), giải mã thành lệnh liên tục.
+            explanation = ddqn_agent.explain(obs)
+            ddqn_trace.append(round_ddqn_explanation(explanation))
+            action = np.array([ddqn_agent.action_value(explanation["chosen_k"])], dtype=np.float32)
         else:
             # Custom heuristic
             h = (step_idx * 0.25) % 24.0
@@ -353,9 +422,11 @@ def simulate(req: SimulationRequest):
             "sun_angle": round(float(sun_angle), 1) if sun_angle is not None else None,
             "flows": flows,
         }
+        if ddqn_agent is not None:
+            step_record["ddqn"] = ddqn_trace[i]
         timeline.append(step_record)
 
-    return {
+    response = {
         "success": True,
         "scenario": req.scenario,
         "split": split,
@@ -377,20 +448,17 @@ def simulate(req: SimulationRequest):
         },
         "timeline": timeline,
     }
+    if ddqn_agent is not None:
+        response["action_grid"] = [round(float(a), 4) for a in ddqn_agent.action_grid]
+    return response
 
 
 @app.post("/api/export-csv")
 def export_csv(req: SimulationRequest):
     """Xuất bảng dữ liệu 96 bước dưới định dạng CSV."""
     sim_result = simulate(req)
-    timeline = sim_result["timeline"]
-    df = pd.DataFrame(timeline)
-    
-    # Flatten flows nếu có
-    if "flows" in df.columns:
-        flows_df = pd.json_normalize(df["flows"])
-        df = pd.concat([df.drop(columns=["flows"]), flows_df], axis=1)
-        
+    df = flatten_timeline(sim_result["timeline"])
+
     csv_buffer = io.StringIO()
     df.to_csv(csv_buffer, index=False, encoding="utf-8-sig")
     csv_bytes = csv_buffer.getvalue().encode("utf-8-sig")
