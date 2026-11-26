@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import SidebarControls from './components/SidebarControls';
 import KpiCards from './components/KpiCards';
 import SmartHouseSimulation from './components/SmartHouseSimulation';
+import QValuesPanel from './components/QValuesPanel';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import DataTableTab from './components/DataTableTab';
 import DocModal from './components/DocModal';
@@ -64,7 +65,9 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`Mô phỏng thất bại với mã lỗi ${response.status}`);
+        // Server trả lý do cụ thể trong `detail` (ví dụ: chưa có checkpoint DDQN).
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `Mô phỏng thất bại với mã lỗi ${response.status}`);
       }
 
       const data = await response.json();
@@ -141,6 +144,13 @@ export default function App() {
             <KpiCards metrics={metrics} policyMode={config.policyMode} />
 
             {/* Tab 2: Analytics Charts Dashboard (Plotly parity) */}
+            {activeTab === 'dashboard' && (
+              <QValuesPanel
+                ddqn={timeline[currentStep]?.ddqn}
+                actionGrid={simResult?.action_grid}
+                timeStr={timeline[currentStep]?.time_str}
+              />
+            )}
             {activeTab === 'dashboard' && (
               <AnalyticsCharts
                 timeline={timeline}

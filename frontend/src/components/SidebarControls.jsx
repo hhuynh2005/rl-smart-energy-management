@@ -129,6 +129,20 @@ export default function SidebarControls({
             </div>
           </label>
 
+          <label className={`radio-card ${config.policyMode === 'ddqn' ? 'active' : ''}`}>
+            <input
+              type="radio"
+              name="policy"
+              value="ddqn"
+              checked={config.policyMode === 'ddqn'}
+              onChange={() => setConfig({ ...config, policyMode: 'ddqn' })}
+            />
+            <div>
+              <div className="radio-label-title">DDQN + Dueling (AI)</div>
+              <div className="radio-label-desc">Chọn 1 trong 11 mức sạc/xả theo Q(s,k) đã học</div>
+            </div>
+          </label>
+
           <label className={`radio-card ${config.policyMode === 'nobat' ? 'active' : ''}`}>
             <input
               type="radio"
