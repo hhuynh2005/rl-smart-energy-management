@@ -72,5 +72,46 @@ class TrainingCommandTests(unittest.TestCase):
             self.assertEqual(before, checkpoint.read_bytes())
 
 
+def write_small_sac_config(root):
+    settings = read_settings(ROOT / "configs/sac.yaml")
+    settings["agent"].update({
+        "hidden_size": 16, "batch_size": 8, "buffer_size": 64, "learning_starts": 8,
+    })
+    settings["training"].update({
+        "total_timesteps": 20, "eval_freq": 10, "eval_days": 1,
+        "log_freq": 10, "seeds": [0],
+    })
+    settings.pop("environment")
+    path = root / "sac.yaml"
+    path.write_text(yaml.safe_dump(settings), encoding="utf-8")
+    return path
+
+
+class EvaluateTests(unittest.TestCase):
+    def test_evaluate_compares_ddqn_sac_and_baselines(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            run_command(self, "train_ddqn.py", "--config", write_small_ddqn_config(root),
+                        "--output", root / "models")
+            run_command(self, "train_sac.py", "--backend", "custom",
+                        "--config", write_small_sac_config(root), "--output", root / "models")
+            arguments = (
+                "evaluate_ddqn.py", "--runs", root / "models/ddqn_seed0",
+                "--sac-runs", root / "models/custom_seed0", "--split", "val",
+                "--max-days", 1, "--data-path", ROOT / "data/processed.csv",
+                "--output", root / "evaluation",
+            )
+            run_command(self, *arguments)
+            daily = pd.read_csv(root / "evaluation/daily_metrics.csv")
+            self.assertEqual(set(daily.method), {"ddqn", "sac", "no_battery", "rule_based"})
+            self.assertEqual(set(daily.scenario), {"S1", "S2", "S3", "S4", "S5"})
+            self.assertEqual(len(daily), 20)
+            self.assertTrue(daily.final_soc.between(0.2 - 1e-6, 0.9 + 1e-6).all())
+            for name in ("summary.csv", "seed_metrics.csv", "evaluation_metadata.json",
+                         "comparison.png", "example_day.png"):
+                self.assertTrue((root / "evaluation" / name).is_file(), name)
+            run_command(self, *arguments, success=False)
+
+
 if __name__ == "__main__":
     unittest.main()
