@@ -4,7 +4,10 @@ Chạy: python -m unittest discover -s tests -p "test_ddqn*.py" -v
 Mạng nhỏ giúp phát hiện lỗi nhanh, không đo chất lượng học.
 """
 
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -141,6 +144,99 @@ class AgentActingTests(unittest.TestCase):
         self.assertEqual(terminated.shape, (3, 1))
         with self.assertRaises(ValueError):
             buffer.sample(5, "cpu")
+
+
+def fill_buffer(agent, count=16, reward=None):
+    rng = np.random.default_rng(10)
+    for i in range(count):
+        agent.buffer.add(
+            rng.normal(size=7), i % agent.config.num_actions,
+            -float(i + 1) if reward is None else reward, rng.normal(size=7), i % 5 == 0,
+        )
+
+
+class AgentLearningTests(unittest.TestCase):
+    def setUp(self):
+        seed_everything(7)
+        self.rewards = torch.tensor([[-1.0], [0.5], [2.0]])
+        self.next_observations = torch.randn(3, 7)
+
+    def disagreeing_agent(self, double):
+        """Mạng chính ưu tiên k=2, mạng đích ưu tiên k=7: hai cách tính đích phải khác nhau."""
+        agent = DDQNAgent(small_config(double=double))
+        force_best_action(agent.online, 2)
+        force_best_action(agent.target, 7)
+        with torch.no_grad():
+            agent.target.output_head.bias[2] = 0.4  # Q_tg(s', 2) thấp hơn Q_tg(s', 7)
+        return agent
+
+    def test_double_target_uses_online_argmax_and_target_values(self):
+        not_done = torch.zeros(3, 1)
+        double = self.disagreeing_agent(True)
+        target_q = double.target(self.next_observations)
+        expected = self.rewards + 0.99 * target_q[:, 2:3]
+        result = double.compute_target(self.rewards, self.next_observations, not_done)
+        torch.testing.assert_close(result, expected)
+        vanilla = self.disagreeing_agent(False)
+        vanilla_result = vanilla.compute_target(self.rewards, self.next_observations, not_done)
+        torch.testing.assert_close(
+            vanilla_result, self.rewards + 0.99 * target_q.max(-1, keepdim=True).values
+        )
+        self.assertFalse(torch.allclose(result, vanilla_result))
+
+    def test_terminated_removes_bootstrap_but_truncation_is_not_an_input(self):
+        agent = self.disagreeing_agent(True)
+        done = agent.compute_target(self.rewards, self.next_observations, torch.ones(3, 1))
+        torch.testing.assert_close(done, self.rewards)
+        live = agent.compute_target(self.rewards, self.next_observations, torch.zeros(3, 1))
+        self.assertFalse(torch.allclose(live, self.rewards))
+
+    def test_update_changes_online_and_soft_updates_target(self):
+        agent = DDQNAgent(small_config(tau=0.1))
+        fill_buffer(agent)
+        old_online = [p.detach().clone() for p in agent.online.parameters()]
+        old_target = [p.detach().clone() for p in agent.target.parameters()]
+        metrics = agent.update()
+        self.assertEqual(set(metrics), {"loss", "q_mean", "td_error_mean"})
+        self.assertTrue(all(np.isfinite(v) for v in metrics.values()))
+        self.assertEqual(agent.update_count, 1)
+        new_online = list(agent.online.parameters())
+        self.assertTrue(any(not torch.equal(a, b) for a, b in zip(old_online, new_online)))
+        for before, online, after in zip(old_target, new_online, agent.target.parameters()):
+            torch.testing.assert_close(after, before + 0.1 * (online.detach() - before))
+            self.assertFalse(after.requires_grad)
+
+    def test_update_clips_gradient_with_configured_norm(self):
+        agent = DDQNAgent(small_config())
+        fill_buffer(agent)
+        with patch("torch.nn.utils.clip_grad_norm_", wraps=torch.nn.utils.clip_grad_norm_) as clip:
+            agent.update()
+        clip.assert_called_once()
+        self.assertEqual(clip.call_args.kwargs["max_norm"], 10.0)
+
+    def test_update_rejects_small_buffer_and_nonfinite_values(self):
+        agent = DDQNAgent(small_config())
+        fill_buffer(agent, count=4)
+        with self.assertRaises(ValueError):
+            agent.update()
+        broken = DDQNAgent(small_config())
+        fill_buffer(broken, reward=float("nan"))
+        with self.assertRaises(FloatingPointError):
+            broken.update()
+
+    def test_save_load_roundtrip(self):
+        agent = DDQNAgent(small_config(), seed=5)
+        fill_buffer(agent)
+        agent.update()
+        observation = np.linspace(0, 1, 7, dtype=np.float32)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model.pt"
+            agent.save(path)
+            loaded = DDQNAgent.load(path)
+        np.testing.assert_allclose(loaded.q_values(observation), agent.q_values(observation))
+        self.assertEqual(loaded.update_count, 1)
+        self.assertEqual(loaded.config, agent.config)
+        self.assertEqual(loaded.seed, 5)
 
 
 if __name__ == "__main__":

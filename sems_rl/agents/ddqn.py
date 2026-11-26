@@ -6,11 +6,13 @@ theo mã giả Thuật toán 4 trong báo cáo TH2.
 """
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 
 @dataclass
@@ -208,3 +210,67 @@ class DDQNAgent:
             ])
         actions = self.action_grid[indices].reshape(-1, 1).astype(np.float32)
         return (actions[0] if single else actions), None
+
+    def compute_target(self, rewards, next_observations, terminated):
+        """Double: k* = argmax Q_θ(s'), y = r + γ(1-d)·Q_tg(s', k*). DQN thường: max Q_tg(s')."""
+        with torch.no_grad():
+            next_target_q = self.target(next_observations)
+            if self.config.double:
+                # Mạng chính CHỌN hành động, mạng đích ĐÁNH GIÁ: giảm ước lượng quá cao.
+                best = self.online(next_observations).argmax(dim=-1, keepdim=True)
+                next_q = next_target_q.gather(1, best)
+            else:
+                next_q = next_target_q.max(dim=-1, keepdim=True).values
+            return rewards + self.config.gamma * (1.0 - terminated) * next_q
+
+    def update(self):
+        """Một lần cập nhật: Huber trên Q(s,k) - y, cắt gradient, rồi cập nhật mềm mạng đích."""
+        observations, actions, rewards, next_observations, terminated = self.buffer.sample(
+            self.config.batch_size, self.device
+        )
+        targets = self.compute_target(rewards, next_observations, terminated)
+        q = self.online(observations).gather(1, actions.long())
+        loss = F.smooth_l1_loss(q, targets)
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            self.online.parameters(), max_norm=self.config.grad_clip_norm
+        )
+        self.optimizer.step()
+
+        # Cập nhật mềm: θ_tg ← τ·θ + (1-τ)·θ_tg; mạng đích thay đổi chậm để đích ít dao động.
+        with torch.no_grad():
+            for parameter, target_parameter in zip(
+                self.online.parameters(), self.target.parameters()
+            ):
+                target_parameter.lerp_(parameter, self.config.tau)
+
+        self.update_count += 1
+        metrics = {
+            "loss": loss.item(), "q_mean": q.mean().item(),
+            "td_error_mean": (q - targets).abs().mean().item(),
+        }
+        if not all(np.isfinite(value) for value in metrics.values()):
+            raise FloatingPointError(f"DDQN gặp giá trị không hữu hạn: {metrics}")
+        return metrics
+
+    def save(self, path):
+        """Lưu mạng và optimizer. Replay buffer không lưu: đây không phải resume đầy đủ."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "config": asdict(self.config), "seed": self.seed,
+            "online": self.online.state_dict(), "target": self.target.state_dict(),
+            "optimizer": self.optimizer.state_dict(), "update_count": self.update_count,
+        }, path)
+
+    @classmethod
+    def load(cls, path, device="cpu"):
+        """Nạp mô hình để dự đoán; chỉ chứa tensor và dữ liệu cấu hình cơ bản."""
+        checkpoint = torch.load(path, map_location=device, weights_only=True)
+        agent = cls(DDQNConfig(**checkpoint["config"]), checkpoint["seed"], device)
+        agent.online.load_state_dict(checkpoint["online"])
+        agent.target.load_state_dict(checkpoint["target"])
+        agent.optimizer.load_state_dict(checkpoint["optimizer"])
+        agent.update_count = checkpoint["update_count"]
+        return agent
