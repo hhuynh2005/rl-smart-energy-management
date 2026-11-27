@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { Download, Search, ShieldAlert, Filter } from 'lucide-react';
+import { Download, Search } from 'lucide-react';
 
 export default function DataTableTab({ timeline = [], currentStep = 0, onSelectStep, scenario, split, targetDay }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClippedOnly, setFilterClippedOnly] = useState(false);
 
   if (!timeline || timeline.length === 0) {
-    return <div style={{ color: '#9CA3AF', padding: '2rem', textAlign: 'center' }}>Không có dữ liệu hiển thị.</div>;
+    return (
+      <div style={{ color: '#64748B', padding: '2rem', textAlign: 'center' }}>
+        Không có dữ liệu hiển thị.
+      </div>
+    );
   }
 
-  // Filter rows
   const filteredTimeline = timeline.filter((row) => {
     if (filterClippedOnly && !row.is_clipped) return false;
     if (searchTerm) {
@@ -23,7 +26,6 @@ export default function DataTableTab({ timeline = [], currentStep = 0, onSelectS
     return true;
   });
 
-  // Client-side CSV Download
   const handleDownloadCsv = () => {
     const headers = [
       'step',
@@ -91,8 +93,7 @@ export default function DataTableTab({ timeline = [], currentStep = 0, onSelectS
   return (
     <div className="table-card">
       <div className="table-header-actions">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          {/* Search box */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <input
               type="text"
@@ -104,25 +105,29 @@ export default function DataTableTab({ timeline = [], currentStep = 0, onSelectS
             />
             <Search
               size={14}
-              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}
+              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#64748B' }}
             />
           </div>
 
-          {/* Filter clipped steps only */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#9CA3AF', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={filterClippedOnly}
               onChange={(e) => setFilterClippedOnly(e.target.checked)}
-              style={{ accentColor: '#EF4444' }}
+              style={{ accentColor: '#B91C1C' }}
             />
             <span>Chỉ xem bước chạm Guardrail</span>
           </label>
+
+          {scenario && (
+            <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+              {scenario} · Ngày {targetDay} ({split})
+            </span>
+          )}
         </div>
 
-        {/* Export CSV button */}
         <button className="btn-export-csv" onClick={handleDownloadCsv} id="btn-export-csv">
-          <Download size={16} />
+          <Download size={15} />
           <span>Tải xuống kết quả (CSV)</span>
         </button>
       </div>
@@ -158,31 +163,31 @@ export default function DataTableTab({ timeline = [], currentStep = 0, onSelectS
                   onClick={() => onSelectStep && onSelectStep(row.step)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td style={{ fontWeight: 700, color: '#60A5FA' }}>#{row.step}</td>
-                  <td style={{ fontWeight: 600 }}>{row.time_str}</td>
+                  <td style={{ fontWeight: 700, color: '#2563EB' }}>#{row.step}</td>
+                  <td style={{ fontWeight: 700 }}>{row.time_str}</td>
                   <td>
-                    {row.tou_tier === 'peak' && <span style={{ color: '#F87171' }}>Cao điểm</span>}
-                    {row.tou_tier === 'normal' && <span style={{ color: '#A5B4FC' }}>Bình thường</span>}
-                    {row.tou_tier === 'off_peak' && <span style={{ color: '#6EE7B7' }}>Thấp điểm</span>}
+                    {row.tou_tier === 'peak' && <span style={{ color: '#DC2626', fontWeight: 700 }}>Cao điểm</span>}
+                    {row.tou_tier === 'normal' && <span style={{ color: '#1D4ED8', fontWeight: 600 }}>Bình thường</span>}
+                    {row.tou_tier === 'off_peak' && <span style={{ color: '#059669', fontWeight: 600 }}>Thấp điểm</span>}
                   </td>
                   <td>{row.p_load_kw.toFixed(1)}</td>
-                  <td style={{ color: '#FBBF24' }}>{row.p_pv_kw.toFixed(1)}</td>
-                  <td style={{ color: row.p_batt_kw > 0 ? '#34D399' : row.p_batt_kw < 0 ? '#F87171' : '#9CA3AF' }}>
+                  <td style={{ color: '#B45309', fontWeight: 600 }}>{row.p_pv_kw.toFixed(1)}</td>
+                  <td style={{ color: row.p_batt_kw > 0 ? '#059669' : row.p_batt_kw < 0 ? '#DC2626' : '#64748B', fontWeight: 600 }}>
                     {row.p_batt_kw > 0 ? `+${row.p_batt_kw.toFixed(1)}` : row.p_batt_kw.toFixed(1)}
                   </td>
-                  <td style={{ color: '#C4B5FD' }}>{row.p_grid_kw.toFixed(1)}</td>
+                  <td style={{ color: '#6D28D9' }}>{row.p_grid_kw.toFixed(1)}</td>
                   <td>{row.p_buy_kw.toFixed(1)}</td>
                   <td>{row.p_sell_kw.toFixed(1)}</td>
-                  <td style={{ fontWeight: 600 }}>{(row.soc * 100).toFixed(1)}%</td>
+                  <td style={{ fontWeight: 700 }}>{(row.soc * 100).toFixed(1)}%</td>
                   <td>{row.c_grid.toLocaleString('vi-VN')}</td>
-                  <td style={{ color: '#FDA4AF' }}>{row.c_elec.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}</td>
-                  <td style={{ color: '#9CA3AF' }}>{row.c_deg.toFixed(1)}</td>
+                  <td style={{ color: '#BE123C', fontWeight: 600 }}>{row.c_elec.toLocaleString('vi-VN', { maximumFractionDigits: 0 })}</td>
+                  <td style={{ color: '#64748B' }}>{row.c_deg.toFixed(1)}</td>
                   <td>{row.reward.toFixed(3)}</td>
                   <td>
                     {row.is_clipped ? (
                       <span className="badge-guardrail">Clipped</span>
                     ) : (
-                      <span style={{ color: '#10B981', fontSize: '0.75rem' }}>An toàn</span>
+                      <span style={{ color: '#059669', fontSize: '0.73rem', fontWeight: 600 }}>An toàn</span>
                     )}
                   </td>
                 </tr>

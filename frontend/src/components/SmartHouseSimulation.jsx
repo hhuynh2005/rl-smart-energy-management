@@ -1,208 +1,122 @@
-import React, { useState, useEffect, useRef } from 'react';
-import SmartHouse3D from './SmartHouse3D';
+import React from 'react';
 import {
   Play,
   Pause,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  Sun,
-  Battery,
-  Home,
-  Zap,
-  Box,
-  Layers,
 } from 'lucide-react';
+import LiveTelemetryCards from './LiveTelemetryCards';
+import { DEFAULT_STEP_DATA, formatMinuteHHMM } from '../utils/timeSync';
 
+/**
+ * SmartHouseSimulation - 2D Cross-Section Schematic of the TLU Microgrid
+ * Synchronized with App.jsx minute-level playback & 96-step backend timeline.
+ */
 export default function SmartHouseSimulation({
   timeline = [],
   currentStep = 38,
-  setCurrentStep,
-  specs = {},
+  currentMinute = 570,
+  onChangeMinute,
+  onSelectStep,
+  isPlaying = false,
+  onTogglePlay,
+  playbackSpeed = 1,
+  setPlaybackSpeed,
+  stepData: propStepData,
+  discreteStep,
 }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 0.5x, 1x, 2x, 5x
-  const [viewMode, setViewMode] = useState('3D'); // '3D' | '2D'
-  const timerRef = useRef(null);
-
   const totalSteps = timeline.length || 96;
-  const stepData = timeline[currentStep] || {
-    hour: 9.5,
-    time_str: '09:30',
-    tou_tier: 'peak',
-    p_load_kw: 80.6,
-    p_pv_kw: 80.6,
-    p_batt_kw: 0.0,
-    p_grid_kw: -21.2,
-    p_buy_kw: 0.0,
-    p_sell_kw: 21.2,
-    soc: 0.90,
-    soc_pct: 90.0,
-    c_grid: 3000,
-    c_elec: 0,
-    is_clipped: false,
-    sun_intensity: 0.85,
-    sun_angle: 75.0,
-    flows: {
-      pv_to_house: 80.6,
-      pv_to_batt: 0.0,
-      pv_to_grid: 21.2,
-      batt_to_house: 0.0,
-      grid_to_house: 0.0,
-      grid_to_batt: 0.0,
-    },
-  };
+  const stepData = propStepData || timeline[currentStep] || DEFAULT_STEP_DATA;
+  const touTier = discreteStep?.tou_tier || stepData.tou_tier || 'normal';
+  const cGrid = discreteStep?.c_grid || stepData.c_grid || 1800;
 
-  // Playback timer effect
-  useEffect(() => {
-    if (isPlaying) {
-      const intervalMs = Math.max(80, Math.floor(600 / playbackSpeed));
-      timerRef.current = setInterval(() => {
-        setCurrentStep((prev) => {
-          if (prev >= totalSteps - 1) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, intervalMs);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isPlaying, playbackSpeed, totalSteps, setCurrentStep]);
-
-  const handlePlayToggle = () => {
-    if (!isPlaying && currentStep >= totalSteps - 1) {
-      setCurrentStep(0);
-    }
-    setIsPlaying(!isPlaying);
-  };
-
-  const handleStepPrev = () => {
-    setIsPlaying(false);
-    setCurrentStep((prev) => Math.max(0, prev - 1));
-  };
-
-  const handleStepNext = () => {
-    setIsPlaying(false);
-    setCurrentStep((prev) => Math.min(totalSteps - 1, prev + 1));
-  };
+  const flows = stepData.flows || DEFAULT_STEP_DATA.flows;
+  const isCharging = (stepData.p_batt_kw || 0) > 0.05;
+  const isDischarging = (stepData.p_batt_kw || 0) < -0.05;
 
   const handleReset = () => {
-    setIsPlaying(false);
-    setCurrentStep(0);
+    if (onSelectStep) onSelectStep(0);
+    else if (onChangeMinute) onChangeMinute(0);
   };
 
-  // Energy flows for 2D diagram
-  const flows = stepData.flows || {
-    pv_to_house: 0,
-    pv_to_batt: 0,
-    pv_to_grid: 0,
-    batt_to_house: 0,
-    grid_to_house: 0,
-    grid_to_batt: 0,
+  const handlePrev = () => {
+    const nextIdx = Math.max(0, currentStep - 1);
+    if (onSelectStep) onSelectStep(nextIdx);
   };
 
-  const isCharging = stepData.p_batt_kw > 0.05;
-  const isDischarging = stepData.p_batt_kw < -0.05;
+  const handleNext = () => {
+    const nextIdx = Math.min(totalSteps - 1, currentStep + 1);
+    if (onSelectStep) onSelectStep(nextIdx);
+  };
 
-  // Mini SVG Sparkline generator for live cards
-  const renderSparkline = (getValue, strokeColor, fixedMin = null, fixedMax = null) => {
-    if (!timeline || timeline.length === 0) return null;
-    const w = 75;
-    const h = 26;
-    const values = timeline.map(getValue);
-    const min = fixedMin !== null ? fixedMin : Math.min(...values);
-    const max = fixedMax !== null ? fixedMax : Math.max(...values, min + 0.001);
-    const range = (max - min) || 1;
-
-    const points = values.map((v, idx) => {
-      const x = (idx / (timeline.length - 1)) * w;
-      const y = h - ((v - min) / range) * (h - 6) - 3;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    });
-
-    const currentIdx = Math.min(currentStep, timeline.length - 1);
-    const curX = ((currentIdx / (timeline.length - 1)) * w).toFixed(1);
-    const curY = (h - ((values[currentIdx] - min) / range) * (h - 6) - 3).toFixed(1);
-
-    const polylineStr = points.join(' ');
-    const gradId = `spark-${strokeColor.replace('#', '')}`;
-
+  const renderFlowLine = (x1, y1, x2, y2, kw, color, label) => {
+    const active = kw > 0.1;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', marginLeft: 'auto', flexShrink: 0 }}>
-        <svg width={w} height={h} style={{ overflow: 'visible' }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity="0.45" />
-              <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
-            </linearGradient>
-          </defs>
-          {/* Subtle baseline */}
-          <line x1="0" y1={h - 1} x2={w} y2={h - 1} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-          {/* Area fill */}
-          <polygon points={`${polylineStr} ${w},${h - 1} 0,${h - 1}`} fill={`url(#${gradId})`} />
-          {/* Sparkline curve */}
-          <polyline points={polylineStr} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          {/* Highlight dot for current time */}
-          <circle cx={curX} cy={curY} r="3.2" fill="#FFFFFF" stroke={strokeColor} strokeWidth="2" />
-        </svg>
-        <span style={{ fontSize: '0.62rem', color: '#64748B', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-          24h Trend
-        </span>
-      </div>
+      <g>
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={active ? color : '#CBD5E1'}
+          strokeWidth={active ? 4 : 2}
+          strokeDasharray={active ? '8 5' : '4 4'}
+        />
+        {active && (
+          <g transform={`translate(${midX}, ${midY})`}>
+            <rect x="-36" y="-11" width="72" height="22" rx="6" fill="#FFFFFF" stroke={color} strokeWidth="1.5" />
+            <text x="0" y="4" fill="#0F172A" fontSize="10" fontWeight="800" textAnchor="middle" fontFamily="monospace">
+              {label}: {kw.toFixed(1)}kW
+            </text>
+          </g>
+        )}
+      </g>
     );
   };
 
   return (
-    <div className="simulation-viewport">
-      {/* 1. Thanh điều khiển phát lại mô phỏng 24h (Playback Bar) */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', flex: 1, minHeight: 0 }}>
+      {/* Playback Control Bar */}
       <div className="playback-bar">
-        {/* Controls: Play, Step, Reset */}
         <div className="playback-controls-left">
           <button className="btn-ctrl" onClick={handleReset} title="Về 00:00" id="btn-sim-reset">
-            <RotateCcw size={15} />
+            <RotateCcw size={14} />
           </button>
-          <button className="btn-ctrl" onClick={handleStepPrev} title="Lùi 15 phút" id="btn-sim-prev">
-            <ChevronLeft size={16} />
+          <button className="btn-ctrl" onClick={handlePrev} title="Lùi 15 phút" id="btn-sim-prev">
+            <ChevronLeft size={15} />
           </button>
           <button
             className={`btn-ctrl primary ${isPlaying ? 'active' : ''}`}
-            onClick={handlePlayToggle}
+            onClick={onTogglePlay}
             title={isPlaying ? 'Tạm dừng' : 'Chạy mô phỏng 24h'}
-            id="btn-sim-play"
+            id="btn-sim-play-2d"
           >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} style={{ marginLeft: 2 }} />}
+            {isPlaying ? <Pause size={15} /> : <Play size={15} style={{ marginLeft: 2 }} />}
           </button>
-          <button className="btn-ctrl" onClick={handleStepNext} title="Tiến 15 phút" id="btn-sim-next">
-            <ChevronRight size={16} />
+          <button className="btn-ctrl" onClick={handleNext} title="Tiến 15 phút" id="btn-sim-next">
+            <ChevronRight size={15} />
           </button>
 
-          {/* Clock Display */}
-          <div className="time-clock-display" style={{ marginLeft: '0.5rem' }}>
-            <div className="time-current">{stepData.time_str}</div>
+          <div className="time-clock-display" style={{ marginLeft: '0.45rem' }}>
+            <div className="time-current">{formatMinuteHHMM(currentMinute)}</div>
             <div className="step-indicator">
-              Bước {currentStep + 1}/{totalSteps} ({(stepData.hour).toFixed(2)}h)
+              Bước {currentStep + 1}/{totalSteps} ({(stepData.hour || 0).toFixed(2)}h)
             </div>
           </div>
         </div>
 
-        {/* Scrubber Range Slider (Clean, evenly spaced Inter font ticks) */}
         <div className="scrubber-wrapper">
           <input
             type="range"
-            className="slider-control scrubber-track"
+            className="slider-orange"
             min={0}
-            max={totalSteps - 1}
-            value={currentStep}
-            onChange={(e) => {
-              setIsPlaying(false);
-              setCurrentStep(parseInt(e.target.value, 10));
-            }}
-            id="sim-timeline-scrubber"
+            max={1439}
+            value={currentMinute}
+            onChange={(e) => onChangeMinute && onChangeMinute(parseInt(e.target.value, 10))}
+            id="sim-timeline-scrubber-2d"
           />
           <div className="scrubber-ticks">
             <span>00:00</span>
@@ -213,26 +127,13 @@ export default function SmartHouseSimulation({
           </div>
         </div>
 
-        {/* Speed, TOU Badge, & View Mode Toggles */}
         <div className="playback-controls-right">
-          {/* TOU Tariff Badge */}
-          {stepData.tou_tier === 'peak' && (
-            <span className="badge-tou-peak">
-              🔴 CAO ĐIỂM: {stepData.c_grid?.toLocaleString('vi-VN')} đ/KWH
-            </span>
-          )}
-          {stepData.tou_tier === 'normal' && (
-            <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#A5B4FC', border: '1px solid #6366F1', padding: '0.32rem 0.65rem' }}>
-              🔵 BÌNH THƯỜNG: {stepData.c_grid?.toLocaleString('vi-VN')} đ/KWH
-            </span>
-          )}
-          {stepData.tou_tier === 'off_peak' && (
-            <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.25)', color: '#6EE7B7', border: '1px solid #10B981', padding: '0.32rem 0.65rem' }}>
-              🟢 THẤP ĐIỂM: {stepData.c_grid?.toLocaleString('vi-VN')} đ/KWH
-            </span>
-          )}
+          <span className={`badge-tou ${touTier}`}>
+            {touTier === 'peak' && `CAO ĐIỂM: ${cGrid.toLocaleString('vi-VN')} đ/kWh`}
+            {touTier === 'normal' && `BÌNH THƯỜNG: ${cGrid.toLocaleString('vi-VN')} đ/kWh`}
+            {touTier === 'off_peak' && `THẤP ĐIỂM: ${cGrid.toLocaleString('vi-VN')} đ/kWh`}
+          </span>
 
-          {/* Speed Selector (0.5x, 1x, 2x, 5x) */}
           <div className="speed-selector">
             {[0.5, 1, 2, 5].map((spd) => (
               <button
@@ -253,7 +154,7 @@ export default function SmartHouseSimulation({
               id="btn-toggle-3d"
             >
               <Box size={13} />
-              <span>3D Khuôn Viên Thủy Lợi</span>
+              <span>3D Không Gian</span>
             </button>
             <button
               className={`view-btn ${viewMode === '2D' ? 'active' : ''}`}
@@ -261,198 +162,125 @@ export default function SmartHouseSimulation({
               id="btn-toggle-2d"
             >
               <Layers size={13} />
-              <span>2D Sơ Đồ Khối</span>
+              <span>2D Mặt Cắt</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. Khung vẽ mô phỏng: 3D Digital Twin (Flex 1) hoặc 2D Mặt Cắt */}
-      {viewMode === '3D' ? (
-        <SmartHouse3D
-          stepData={stepData}
-          currentStep={currentStep}
-          totalSteps={totalSteps}
-        />
-      ) : (
-        <div className="house-svg-container">
-          <svg viewBox="0 0 1000 480" className="house-svg" preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient id="pvPanelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#1E3A8A" />
-                <stop offset="50%" stopColor="#2563EB" />
-                <stop offset="100%" stopColor="#1D4ED8" />
-              </linearGradient>
-              <linearGradient id="batteryGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-                <stop offset="0%" stopColor={isDischarging ? '#EF4444' : '#10B981'} />
-                <stop offset="100%" stopColor={isDischarging ? '#F87171' : '#34D399'} />
-              </linearGradient>
-              <linearGradient id="inverterCoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="100%" stopColor="#8B5CF6" />
-              </linearGradient>
-            </defs>
+      {/* 2D TLU Microgrid Schematic */}
+      <div className="house-svg-container">
+        <svg viewBox="0 0 1000 420" className="house-svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="pvGrad2D" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#1E3A8A" />
+              <stop offset="100%" stopColor="#2563EB" />
+            </linearGradient>
+          </defs>
 
-            {/* Ground & Grass */}
-            <rect x="0" y="380" width="1000" height="100" fill="#064E3B" opacity="0.6" />
+          {/* Soft light campus grass band */}
+          <rect x="0" y="340" width="1000" height="80" fill="#DCFCE7" />
+          <line x1="0" y1="340" x2="1000" y2="340" stroke="#86EFAC" strokeWidth="2" />
 
-            {/* 1. Solar PV Station (Left) */}
-            <g transform="translate(140, 160)">
-              <rect x="0" y="0" width="220" height="110" rx="8" fill="#1E293B" stroke="#3B82F6" strokeWidth="2" />
-              <rect x="10" y="10" width="200" height="90" rx="4" fill="url(#pvPanelGrad)" />
-              <text x="110" y="45" fill="#FBBF24" fontSize="14" fontWeight="800" textAnchor="middle">SOLAR PV</text>
-              <text x="110" y="75" fill="#FFFFFF" fontSize="20" fontWeight="900" textAnchor="middle" fontFamily="monospace">
-                {stepData.p_pv_kw.toFixed(1)} kW
-              </text>
-            </g>
+          {/* Energy Conduits */}
+          {renderFlowLine(260, 145, 430, 145, flows.pv_to_house, '#D97706', 'PV→TLU')}
+          {renderFlowLine(210, 200, 260, 275, flows.pv_to_batt, '#0891B2', 'PV→Pin')}
+          {renderFlowLine(350, 290, 460, 210, flows.batt_to_house, '#EA580C', 'Pin→TLU')}
+          {renderFlowLine(720, 145, 580, 145, flows.grid_to_house, '#7C3AED', 'EVN→TLU')}
+          {renderFlowLine(260, 95, 720, 95, flows.pv_to_grid, '#059669', 'Bán lưới')}
+          {renderFlowLine(720, 200, 360, 315, flows.grid_to_batt, '#0891B2', 'Sạc đêm')}
 
-            {/* 2. Building K1 Load (Center) */}
-            <g transform="translate(420, 180)">
-              <polygon points="110,0 20,60 200,60" fill="#3B82F6" opacity="0.8" />
-              <rect x="20" y="60" width="180" height="140" rx="6" fill="#1E293B" stroke="#60A5FA" strokeWidth="2" />
-              <text x="110" y="105" fill="#60A5FA" fontSize="14" fontWeight="800" textAnchor="middle">PHỤ TẢI TÒA K1</text>
-              <text x="110" y="145" fill="#FFFFFF" fontSize="22" fontWeight="900" textAnchor="middle" fontFamily="monospace">
-                {stepData.p_load_kw.toFixed(1)} kW
-              </text>
-            </g>
+          {/* 1. Solar PV Station (Left) */}
+          <g transform="translate(80, 90)">
+            <rect x="0" y="0" width="180" height="110" rx="12" fill="#FFFFFF" stroke="#D97706" strokeWidth="2.5" />
+            <rect x="12" y="12" width="156" height="44" rx="6" fill="url(#pvGrad2D)" />
+            <text x="90" y="39" fill="#FDE68A" fontSize="13" fontWeight="800" textAnchor="middle">
+              SOLAR PV ÁP MÁI
+            </text>
+            <text x="90" y="88" fill="#B45309" fontSize="22" fontWeight="900" textAnchor="middle" fontFamily="monospace">
+              {(stepData.p_pv_kw || 0).toFixed(1)} kW
+            </text>
+          </g>
 
-            {/* 3. BESS Container (Bottom Center-Left) */}
-            <g transform="translate(200, 310)">
-              <rect x="0" y="0" width="160" height="90" rx="8" fill="#065F46" stroke="#10B981" strokeWidth="2" />
-              <text x="80" y="32" fill="#34D399" fontSize="12" fontWeight="800" textAnchor="middle">
-                BESS (SoC: {stepData.soc_pct.toFixed(0)}%)
-              </text>
-              <text x="80" y="65" fill="#FFFFFF" fontSize="18" fontWeight="900" textAnchor="middle" fontFamily="monospace">
-                {stepData.p_batt_kw > 0 ? `+${stepData.p_batt_kw.toFixed(1)} kW` : `${stepData.p_batt_kw.toFixed(1)} kW`}
-              </text>
-            </g>
+          {/* 2. TLU Campus Buildings Load (Center) */}
+          <g transform="translate(410, 75)">
+            {/* Stylized A1 U-building & K1 silhouette */}
+            <rect x="0" y="35" width="180" height="135" rx="12" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2.5" />
+            <rect x="18" y="14" width="144" height="24" rx="4" fill="#B91C1C" />
+            <text x="90" y="30" fill="#FFFFFF" fontSize="11" fontWeight="800" textAnchor="middle">
+              ĐẠI HỌC THỦY LỢI (A1 · K1 · KTX)
+            </text>
+            <text x="90" y="88" fill="#475569" fontSize="12" fontWeight="700" textAnchor="middle">
+              PHỤ TẢI KHUÔN VIÊN
+            </text>
+            <text x="90" y="128" fill="#1D4ED8" fontSize="24" fontWeight="900" textAnchor="middle" fontFamily="monospace">
+              {(stepData.p_load_kw || 0).toFixed(1)} kW
+            </text>
+          </g>
 
-            {/* 4. High-Voltage EVN Grid (Right) */}
-            <g transform="translate(720, 160)">
-              <rect x="0" y="0" width="180" height="130" rx="8" fill="#1E293B" stroke="#8B5CF6" strokeWidth="2" />
-              <text x="90" y="45" fill="#C4B5FD" fontSize="14" fontWeight="800" textAnchor="middle">LƯỚI ĐIỆN EVN</text>
-              <text x="90" y="85" fill="#FFFFFF" fontSize="20" fontWeight="900" textAnchor="middle" fontFamily="monospace">
-                {stepData.p_buy_kw > 0 ? `Mua: ${stepData.p_buy_kw.toFixed(1)} kW` : stepData.p_sell_kw > 0 ? `Bán: ${stepData.p_sell_kw.toFixed(1)} kW` : '0.0 kW'}
-              </text>
-            </g>
-
-            {/* Central Animated SEMS Dispatch Hub */}
-            <circle cx="510" cy="270" r="16" fill="#3B82F6" opacity="0.8" />
-            <text x="510" y="274" fill="#FFFFFF" fontSize="9" fontWeight="900" textAnchor="middle">SEMS</text>
-          </svg>
-        </div>
-      )}
-
-      {/* 3. Dãy thẻ Telemetry đo lường tức thời (Live Telemetry Row) */}
-      <div className="live-telemetry-row">
-        {/* PV Telemetry */}
-        <div className="live-card">
-          <div className="live-icon-box" style={{ background: 'rgba(245, 158, 11, 0.18)', color: '#F59E0B' }}>
-            <Sun size={20} />
-          </div>
-          <div className="live-content">
-            <span className="live-label">Quang điện Mái K1 (PV)</span>
-            <span className="live-number" style={{ color: '#FBBF24' }}>
-              {stepData.p_pv_kw.toFixed(1)} <small style={{ fontSize: '0.75rem', color: '#94A3B8' }}>kW</small>
-            </span>
-          </div>
-          {renderSparkline((d) => d.p_pv_kw, '#F59E0B', 0, 150)}
-        </div>
-
-        {/* Building K1 Load Telemetry */}
-        <div className="live-card">
-          <div className="live-icon-box" style={{ background: 'rgba(59, 130, 246, 0.18)', color: '#3B82F6' }}>
-            <Home size={20} />
-          </div>
-          <div className="live-content">
-            <span className="live-label">Phụ tải Tòa K1 (P_load)</span>
-            <span className="live-number" style={{ color: '#60A5FA' }}>
-              {stepData.p_load_kw.toFixed(1)} <small style={{ fontSize: '0.75rem', color: '#94A3B8' }}>kW</small>
-            </span>
-          </div>
-          {renderSparkline((d) => d.p_load_kw, '#3B82F6')}
-        </div>
-
-        {/* Battery Telemetry (Single line value + Status Badge pill, zero wrap) */}
-        <div className="live-card">
-          <div
-            className="live-icon-box"
-            style={{
-              background: isDischarging ? 'rgba(239, 68, 68, 0.18)' : 'rgba(16, 185, 129, 0.18)',
-              color: isDischarging ? '#EF4444' : '#10B981',
-            }}
-          >
-            <Battery size={20} />
-          </div>
-          <div className="live-content">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-              <span className="live-label">Pin BESS ({stepData.soc_pct.toFixed(0)}%)</span>
-              <span
-                style={{
-                  fontSize: '0.62rem',
-                  fontWeight: 700,
-                  padding: '0.12rem 0.38rem',
-                  borderRadius: '4px',
-                  background: isDischarging ? 'rgba(239, 68, 68, 0.25)' : isCharging ? 'rgba(16, 185, 129, 0.25)' : 'rgba(148, 163, 184, 0.2)',
-                  color: isDischarging ? '#FCA5A5' : isCharging ? '#6EE7B7' : '#94A3B8',
-                  border: `1px solid ${isDischarging ? '#EF4444' : isCharging ? '#10B981' : '#64748B'}`,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {isCharging ? 'Sạc' : isDischarging ? 'Xả' : 'Nghỉ'}
-              </span>
-            </div>
-            <span
-              className="live-number"
-              style={{
-                color: isDischarging ? '#F87171' : isCharging ? '#34D399' : '#94A3B8',
-                whiteSpace: 'nowrap',
-                fontSize: 'clamp(1.0rem, 1.15vw, 1.25rem)',
-              }}
+          {/* 3. BESS Megapack (Bottom-Left) */}
+          <g transform="translate(170, 265)">
+            <rect
+              x="0"
+              y="0"
+              width="190"
+              height="95"
+              rx="12"
+              fill="#FFFFFF"
+              stroke={isDischarging ? '#DC2626' : '#059669'}
+              strokeWidth="2.5"
+            />
+            <rect
+              x="14"
+              y="58"
+              width={Math.max(10, ((stepData.soc_pct || 0) / 100) * 162)}
+              height="22"
+              rx="5"
+              fill={isDischarging ? '#FCA5A5' : '#6EE7B7'}
+            />
+            <text
+              x="95"
+              y="26"
+              fill={isDischarging ? '#B91C1C' : '#047857'}
+              fontSize="12"
+              fontWeight="800"
+              textAnchor="middle"
             >
-              {stepData.p_batt_kw > 0 ? `+${stepData.p_batt_kw.toFixed(1)} kW` : stepData.p_batt_kw < 0 ? `${stepData.p_batt_kw.toFixed(1)} kW` : '0.0 kW'}
-            </span>
-          </div>
-          {renderSparkline((d) => d.soc_pct, '#10B981', 0, 100)}
-        </div>
+              BESS ({(stepData.soc_pct || 0).toFixed(0)}% · {isCharging ? 'Sạc' : isDischarging ? 'Xả' : 'Nghỉ'})
+            </text>
+            <text x="95" y="49" fill="#0F172A" fontSize="18" fontWeight="900" textAnchor="middle" fontFamily="monospace">
+              {(stepData.p_batt_kw || 0) > 0
+                ? `+${(stepData.p_batt_kw || 0).toFixed(1)} kW`
+                : `${(stepData.p_batt_kw || 0).toFixed(1)} kW`}
+            </text>
+          </g>
 
-        {/* Grid Telemetry (Single line value + Status Badge pill, zero wrap) */}
-        <div className="live-card">
-          <div className="live-icon-box" style={{ background: 'rgba(139, 92, 246, 0.18)', color: '#8B5CF6' }}>
-            <Zap size={20} />
-          </div>
-          <div className="live-content">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-              <span className="live-label">Điện lưới ({stepData.c_grid?.toLocaleString('vi-VN')} đ)</span>
-              <span
-                style={{
-                  fontSize: '0.62rem',
-                  fontWeight: 700,
-                  padding: '0.12rem 0.38rem',
-                  borderRadius: '4px',
-                  background: stepData.p_buy_kw > 0 ? 'rgba(139, 92, 246, 0.25)' : stepData.p_sell_kw > 0 ? 'rgba(245, 158, 11, 0.25)' : 'rgba(148, 163, 184, 0.2)',
-                  color: stepData.p_buy_kw > 0 ? '#C4B5FD' : stepData.p_sell_kw > 0 ? '#FDE68A' : '#94A3B8',
-                  border: `1px solid ${stepData.p_buy_kw > 0 ? '#8B5CF6' : stepData.p_sell_kw > 0 ? '#F59E0B' : '#64748B'}`,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {stepData.p_buy_kw > 0 ? 'Mua' : stepData.p_sell_kw > 0 ? 'Bán' : 'Cân bằng'}
-              </span>
-            </div>
-            <span
-              className="live-number"
-              style={{
-                color: '#C4B5FD',
-                whiteSpace: 'nowrap',
-                fontSize: 'clamp(1.0rem, 1.15vw, 1.25rem)',
-              }}
-            >
-              {stepData.p_buy_kw > 0 ? `${stepData.p_buy_kw.toFixed(1)} kW` : stepData.p_sell_kw > 0 ? `${stepData.p_sell_kw.toFixed(1)} kW` : '0.0 kW'}
-            </span>
-          </div>
-          {renderSparkline((d) => d.p_grid_kw, '#8B5CF6')}
-        </div>
+          {/* 4. EVN Grid 22kV (Right) */}
+          <g transform="translate(720, 88)">
+            <rect x="0" y="0" width="200" height="120" rx="12" fill="#FFFFFF" stroke="#7C3AED" strokeWidth="2.5" />
+            <text x="100" y="36" fill="#6D28D9" fontSize="13" fontWeight="800" textAnchor="middle">
+              LƯỚI ĐIỆN EVN 22kV
+            </text>
+            <text x="100" y="75" fill="#0F172A" fontSize="21" fontWeight="900" textAnchor="middle" fontFamily="monospace">
+              {(stepData.p_buy_kw || 0) > 0
+                ? `Mua: ${(stepData.p_buy_kw || 0).toFixed(1)} kW`
+                : (stepData.p_sell_kw || 0) > 0
+                ? `Bán: ${(stepData.p_sell_kw || 0).toFixed(1)} kW`
+                : '0.0 kW'}
+            </text>
+            <text x="100" y="100" fill="#64748B" fontSize="11" fontWeight="600" textAnchor="middle">
+              Đơn giá: {cGrid.toLocaleString('vi-VN')} đ/kWh
+            </text>
+          </g>
+        </svg>
       </div>
+
+      {/* Shared Live Telemetry Strip */}
+      <LiveTelemetryCards
+        stepData={{ ...stepData, c_grid: cGrid }}
+        timeline={timeline}
+        currentStep={currentStep}
+      />
     </div>
   );
 }
