@@ -52,6 +52,14 @@ class DDQNConfig:
             raise ValueError("Số bước giảm epsilon phải dương.")
 
 
+class LossMetrics(dict):
+    def __float__(self):
+        return float(self.get("loss", 0.0))
+
+    def __array__(self):
+        return np.array(float(self))
+
+
 def build_action_grid(num_actions):
     """a = -1 + 2k/(K-1): cùng công thức với DiscretizeActionWrapper; k ở giữa là pin nghỉ."""
     return np.linspace(-1.0, 1.0, int(num_actions), dtype=np.float32)
@@ -63,8 +71,18 @@ class DuelingQNetwork(nn.Module):
     Khi dueling=False, output_head cho thẳng Q (DQN thường) để chạy ablation.
     """
 
-    def __init__(self, config):
+    def __init__(self, config=None, state_dim=None, num_actions=None, hidden_size=256, dueling=True):
         super().__init__()
+        if not isinstance(config, DDQNConfig):
+            cfg_obs_dim = state_dim if state_dim is not None else (config if isinstance(config, int) else 7)
+            cfg_num_actions = num_actions if num_actions is not None else 11
+            config = DDQNConfig(
+                observation_dim=cfg_obs_dim,
+                num_actions=cfg_num_actions,
+                hidden_size=hidden_size,
+                dueling=dueling,
+            )
+        self.config = config
         self.dueling = config.dueling
         self.trunk = nn.Sequential(
             nn.Linear(config.observation_dim, config.hidden_size), nn.ReLU(),
@@ -113,6 +131,9 @@ class ReplayBuffer:
         self.position = (i + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
 
+    def push(self, observation, action_index, reward, next_observation, terminated):
+        self.add(observation, action_index, reward, next_observation, terminated)
+
     def sample(self, batch_size, device):
         if self.size < batch_size:
             raise ValueError("Replay buffer chưa đủ trải nghiệm để lấy một batch.")
@@ -127,8 +148,31 @@ class ReplayBuffer:
 class DDQNAgent:
     """Bộ điều khiển DDQN; predict trả hành động LIÊN TỤC giống SAC để dùng chung đánh giá."""
 
-    def __init__(self, config=None, seed=0, device="cpu"):
-        self.config = config or DDQNConfig()
+    def __init__(self, config=None, seed=0, device="cpu", **kwargs):
+        if not isinstance(config, DDQNConfig):
+            cfg_dict = {}
+            if isinstance(config, dict):
+                cfg_dict.update(config)
+            if "state_dim" in kwargs:
+                cfg_dict["observation_dim"] = kwargs.pop("state_dim")
+            if "num_actions" in kwargs:
+                cfg_dict["num_actions"] = kwargs.pop("num_actions")
+            if "batch_size" in kwargs:
+                cfg_dict["batch_size"] = kwargs.pop("batch_size")
+            if "n_start" in kwargs:
+                cfg_dict["learning_starts"] = kwargs.pop("n_start")
+            if "eps_start" in kwargs:
+                cfg_dict["epsilon_start"] = kwargs.pop("eps_start")
+            if "eps_end" in kwargs:
+                cfg_dict["epsilon_end"] = kwargs.pop("eps_end")
+            if "n_decay" in kwargs:
+                cfg_dict["epsilon_decay_steps"] = kwargs.pop("n_decay")
+            if "tau" in kwargs:
+                cfg_dict["tau"] = kwargs.pop("tau")
+            cfg_dict.update(kwargs)
+            self.config = DDQNConfig(**cfg_dict)
+        else:
+            self.config = config
         self.device = torch.device(device)
         self.seed = seed
         torch.manual_seed(seed)
@@ -136,13 +180,29 @@ class DDQNAgent:
             torch.cuda.manual_seed_all(seed)
         self.online = DuelingQNetwork(self.config).to(self.device)
         self.target = deepcopy(self.online).requires_grad_(False)
+        self.q_net = self.online
+        self.target_net = self.target
         self.optimizer = torch.optim.Adam(
             self.online.parameters(), lr=self.config.learning_rate
         )
         self.action_grid = build_action_grid(self.config.num_actions)
         self.rng = np.random.default_rng(seed)
         self.buffer = ReplayBuffer(self.config, seed)
+        self.replay_buffer = self.buffer
         self.update_count = 0
+
+    def compute_epsilon(self, step):
+        return self.epsilon(step)
+
+    def soft_update(self, tau=None):
+        tau = self.config.tau if tau is None else tau
+        with torch.no_grad():
+            for target_param, online_param in zip(self.target.parameters(), self.online.parameters()):
+                target_param.data.copy_(tau * online_param.data + (1.0 - tau) * target_param.data)
+
+    def select_action(self, observation, step=0, eval_mode=True):
+        eps = 0.0 if eval_mode else self.epsilon(step)
+        return self.select_action_index(observation, eps)
 
     def epsilon(self, step):
         """ε giảm tuyến tính theo bước môi trường TOÀN CỤC, rồi giữ epsilon_end."""
@@ -252,7 +312,7 @@ class DDQNAgent:
         }
         if not all(np.isfinite(value) for value in metrics.values()):
             raise FloatingPointError(f"DDQN gặp giá trị không hữu hạn: {metrics}")
-        return metrics
+        return LossMetrics(metrics)
 
     def save(self, path):
         """Lưu mạng và optimizer. Replay buffer không lưu: đây không phải resume đầy đủ."""

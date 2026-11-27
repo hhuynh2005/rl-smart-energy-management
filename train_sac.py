@@ -12,7 +12,14 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.tensorboard import SummaryWriter
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except (ImportError, ModuleNotFoundError):
+    class SummaryWriter:  # type: ignore
+        def __init__(self, *args, **kwargs): pass
+        def add_scalar(self, *args, **kwargs): pass
+        def close(self): pass
+        def flush(self): pass
 
 from sems_rl.agents.sac import SACAgent, SACConfig
 from sems_rl.experiments.sac_experiment import (
