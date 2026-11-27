@@ -1,0 +1,150 @@
+{
+  "protocol": "sac-daily-v1",
+  "environment": {
+    "system": {
+      "delta_t": 0.25,
+      "episode_steps": 96,
+      "gamma": 0.99,
+      "p_th": 90.0,
+      "p_pv_rated": 150.0,
+      "p_load_peak_nominal": 120.0,
+      "c_feed_in": 600.0
+    },
+    "battery": {
+      "e_cap": 200.0,
+      "p_charge_max": 50.0,
+      "p_discharge_max": 50.0,
+      "eta_c": 0.92,
+      "eta_d": 0.92,
+      "soc_min": 0.2,
+      "soc_max": 0.9,
+      "soc_init_low": 0.3,
+      "soc_init_high": 0.7,
+      "c_bat": 3000000.0,
+      "n_cycle": 4000,
+      "dod": 0.8
+    },
+    "reward": {
+      "w1_wear": 1.0,
+      "w2_peak": 1.0,
+      "w3_viol": 10.0,
+      "use_guardrail": true
+    },
+    "tou_tariff": {
+      "peak": 3000.0,
+      "normal": 1800.0,
+      "off_peak": 1100.0
+    },
+    "data": {
+      "file_path": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\data\\processed.csv",
+      "train_ratio": 0.7,
+      "val_ratio": 0.15,
+      "test_ratio": 0.15
+    },
+    "noise": {
+      "sigma_load": 0.05,
+      "sigma_pv": 0.1
+    }
+  },
+  "evaluation": {
+    "initial_soc": 0.5,
+    "pv_scale_cloudy": 0.5,
+    "sigma_load": 0.08,
+    "sigma_pv": 0.15
+  },
+  "data_sha256": "9b8191f4d33b71a5d246f5306d3658e02050d4fba235ba2dedaf5eb318f9bdd7",
+  "fingerprint": "dfcf3809d9763677e137ffa4a62bdbc1b697bc5eefadac43ac735591bec01ccc",
+  "backend": "ddqn",
+  "seed": 0,
+  "settings": {
+    "agent": {
+      "observation_dim": 7,
+      "num_actions": 11,
+      "hidden_size": 256,
+      "learning_rate": 0.0001,
+      "gamma": 0.99,
+      "tau": 0.005,
+      "batch_size": 256,
+      "buffer_size": 200000,
+      "learning_starts": 5000,
+      "epsilon_start": 1.0,
+      "epsilon_end": 0.05,
+      "epsilon_decay_steps": 50000,
+      "grad_clip_norm": 10.0,
+      "double": true,
+      "dueling": true
+    },
+    "training": {
+      "total_timesteps": 50000,
+      "seeds": [
+        0
+      ],
+      "eval_freq": 10000,
+      "eval_days": 54,
+      "log_freq": 1000,
+      "torch_threads": 1
+    },
+    "evaluation": {
+      "initial_soc": 0.5,
+      "pv_scale_cloudy": 0.5,
+      "sigma_load": 0.08,
+      "sigma_pv": 0.15
+    },
+    "environment": {
+      "system": {
+        "delta_t": 0.25,
+        "episode_steps": 96,
+        "gamma": 0.99,
+        "p_th": 90.0,
+        "p_pv_rated": 150.0,
+        "p_load_peak_nominal": 120.0,
+        "c_feed_in": 600.0
+      },
+      "battery": {
+        "e_cap": 200.0,
+        "p_charge_max": 50.0,
+        "p_discharge_max": 50.0,
+        "eta_c": 0.92,
+        "eta_d": 0.92,
+        "soc_min": 0.2,
+        "soc_max": 0.9,
+        "soc_init_low": 0.3,
+        "soc_init_high": 0.7,
+        "c_bat": 3000000.0,
+        "n_cycle": 4000,
+        "dod": 0.8
+      },
+      "reward": {
+        "w1_wear": 1.0,
+        "w2_peak": 1.0,
+        "w3_viol": 10.0,
+        "use_guardrail": true
+      },
+      "tou_tariff": {
+        "peak": 3000.0,
+        "normal": 1800.0,
+        "off_peak": 1100.0
+      },
+      "data": {
+        "file_path": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\data\\processed.csv",
+        "train_ratio": 0.7,
+        "val_ratio": 0.15,
+        "test_ratio": 0.15
+      },
+      "noise": {
+        "sigma_load": 0.05,
+        "sigma_pv": 0.1
+      }
+    }
+  },
+  "selection_metric": "adjusted_total_cost_vnd_mean (càng thấp càng tốt)",
+  "versions": {
+    "python": "3.13.0",
+    "torch": "2.14.1+cpu",
+    "gymnasium": "1.4.0",
+    "stable_baselines3": "2.9.2",
+    "numpy": "2.5.4",
+    "pandas": "3.1.0"
+  },
+  "device": "cpu"
+}
