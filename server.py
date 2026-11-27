@@ -245,6 +245,7 @@ def get_scenarios():
         "policies": [
             {"id": "nobat", "name": "Mốc đối chuẩn: No-Battery (Pin nghỉ, a=0)"},
             {"id": "rbc", "name": "Heuristic: Rule-Based Controller (Chuyên gia)"},
+            {"id": "ddqn", "name": "AI: DDQN + Dueling (11 mức hành động rời rạc)"},
             {"id": "custom", "name": "Thủ công: Interactive Custom Schedule (Sạc đêm, xả chiều)"},
         ],
         "specs": {

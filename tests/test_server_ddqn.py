@@ -77,6 +77,11 @@ class ServerDDQNTests(unittest.TestCase):
         self.assertNotIn("flows", frame.columns)
         self.assertEqual(len(frame), 96)
 
+    def test_scenarios_endpoint_lists_ddqn_policy(self):
+        scenarios_payload = server.get_scenarios()
+        policy_ids = {p["id"] for p in scenarios_payload["policies"]}
+        self.assertIn("ddqn", policy_ids)
+
 
 if __name__ == "__main__":
     unittest.main()
