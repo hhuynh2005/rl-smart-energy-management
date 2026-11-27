@@ -1,0 +1,30 @@
+{
+  "split": "test",
+  "scenarios": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "max_days": null,
+  "fingerprint": "5a1d81f954ad072dd73b564ca6af075e5511b7a4fd60776c43dc8ecaa868b9b6",
+  "runs": [
+    "runs/ppo_final/ppo_seed0",
+    "runs/ppo_final/ppo_seed1",
+    "runs/ppo_final/ppo_seed2",
+    "runs/ppo_final/ppo_seed3",
+    "runs/ppo_final/ppo_seed4"
+  ],
+  "trace_seeds_selected": {
+    "S1/ppo_sb3": 1,
+    "S2/ppo_sb3": 2,
+    "S3/ppo_sb3": 0,
+    "S4/ppo_sb3": 2,
+    "S5/ppo_sb3": 2
+  },
+  "noise_seed_base": 0,
+  "dataset_used": "data/processed.csv",
+  "std_definition": "Độ lệch chuẩn mẫu (ddof=1) giữa các trung bình seed; 1 seed ghi 0.",
+  "bootstrap_ci_definition": "Bootstrap 95% CI (1.000 mẫu lặp) trên trung bình theo ngày qua các seed."
+}

@@ -436,6 +436,8 @@ streamlit run dashboard.py
      python test_all_scenarios.py
      ```
 
+> **Phần PPO & Pipeline Đánh giá (Nguyễn Tùng Dương):** Xem báo cáo kết quả 5 seeds, bảng số liệu Validation/Test và hướng dẫn ghép nối SAC/TD3/DDQN tại [`docs/BAO_CAO_PPO_VA_DANH_GIA.md`](docs/BAO_CAO_PPO_VA_DANH_GIA.md), dàn ý slide tại [`docs/SLIDE_THUYET_TRINH_PPO.md`](docs/SLIDE_THUYET_TRINH_PPO.md), và ảnh/CSV lưu tại [`docs/ppo_results/`](docs/ppo_results).
+
 ---
 
 *Tài liệu được biên soạn và cập nhật bởi **Nguyễn Văn Huỳnh & Lý Đình Sơn** (Phân hệ Môi trường & Dữ liệu - SEMS-RL).*

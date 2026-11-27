@@ -1,0 +1,39 @@
+# Cấu hình PPO chuẩn theo Báo cáo Thực hành 2 (Nhóm 7 - Nguyễn Tùng Dương)
+agent:
+  algorithm: ppo
+  backend: sb3
+  observation_dim: 7
+  action_dim: 1
+  net_arch:
+    pi: [64, 64]
+    vf: [64, 64]
+  activation: tanh           # tanh (mặc định PPO) hoặc relu
+  n_envs: 4
+  n_steps: 480               # 480 * 4 = 1,920 bước/rollout (~20 ngày)
+  batch_size: 64
+  n_epochs: 10
+  learning_rate: 0.0003
+  lr_schedule: constant      # constant hoặc linear
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.005
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: null
+  normalize_reward: false
+  clip_action_eval: true
+
+training:
+  total_timesteps: 300000
+  seeds: [0, 1, 2, 3, 4]
+  eval_freq: 10000
+  eval_days: 54              # Đánh giá trên toàn bộ 54 ngày validation; test chỉ chạy khi chốt cuối.
+  log_freq: 1920             # Mỗi 1 rollout (n_envs * n_steps)
+  torch_threads: 1
+
+evaluation:
+  initial_soc: 0.5
+  pv_scale_cloudy: 0.5       # S3 giảm 50% PV thực tế
+  sigma_load: 0.08           # S4 nhiễu quan sát tải
+  sigma_pv: 0.15             # S4 nhiễu quan sát PV

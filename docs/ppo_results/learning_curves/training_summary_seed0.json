@@ -1,0 +1,12 @@
+{
+  "algorithm": "ppo",
+  "backend": "sb3",
+  "total_timesteps": 303360,
+  "best_step": 60000,
+  "best_validation_adjusted_total_cost_vnd": 843621.6948280034,
+  "validation_days": 54,
+  "training_seed": 0,
+  "elapsed_seconds": 234.87612369999988,
+  "test_used_for_selection": false,
+  "resume_supported": false
+}

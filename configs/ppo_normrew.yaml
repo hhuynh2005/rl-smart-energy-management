@@ -1,0 +1,39 @@
+# Cấu hình PPO biến thể B: Mạng [64, 64] Tanh + VecNormalize Reward + Batch lớn + target_kl nhỏ
+agent:
+  algorithm: ppo
+  backend: sb3
+  observation_dim: 7
+  action_dim: 1
+  net_arch:
+    pi: [64, 64]
+    vf: [64, 64]
+  activation: tanh
+  n_envs: 4
+  n_steps: 480
+  batch_size: 256
+  n_epochs: 5
+  learning_rate: 0.0003
+  lr_schedule: linear
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.02
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: 0.015
+  normalize_reward: true
+  clip_action_eval: true
+
+training:
+  total_timesteps: 300000
+  seeds: [0, 1, 2, 3, 4]
+  eval_freq: 10000
+  eval_days: 54
+  log_freq: 1920
+  torch_threads: 1
+
+evaluation:
+  initial_soc: 0.5
+  pv_scale_cloudy: 0.5
+  sigma_load: 0.08
+  sigma_pv: 0.15
