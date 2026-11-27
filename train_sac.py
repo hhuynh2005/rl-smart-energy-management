@@ -6,6 +6,7 @@ Mặc định chính thức: 300.000 bước/seed, 5 seed. Không tự đánh gi
 
 import argparse
 import csv
+import json
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -19,6 +20,7 @@ from sems_rl.experiments.sac_experiment import (
     evaluate_policy, experiment_metadata, make_env, plot_learning_curve,
     read_settings, scenario_days, seed_everything, summarize_days, write_json,
 )
+from sems_rl.experiments.sac_resume import load_resume, restore_resume, save_resume
 
 
 def append_csv(path, row):
@@ -41,12 +43,12 @@ def check_spaces(env, config):
 class TrainingRecorder:
     """Đánh giá trên validation, lưu mô hình tốt nhất và log cho cả hai bản SAC."""
 
-    def __init__(self, run_dir, settings, seed, backend, pipeline):
+    def __init__(self, run_dir, settings, seed, backend, pipeline, resume_step=None):
         self.run_dir = run_dir
         self.settings = settings
         self.seed = seed
         self.extension = ".pt" if backend == "custom" else ".zip"
-        self.writer = SummaryWriter(str(run_dir / "tensorboard"))
+        self.writer = SummaryWriter(str(run_dir / "tensorboard"), purge_step=resume_step)
         self.eval_env = make_env(settings, split="val", data_pipeline=pipeline)
         self.days = scenario_days(
             self.eval_env, "val", "S5", settings["training"]["eval_days"]
@@ -101,26 +103,38 @@ class TrainingRecorder:
             "validation_days": len(self.days), "training_seed": self.seed,
             "elapsed_seconds": time.perf_counter() - self.started,
             "test_used_for_selection": False,
-            "resume_supported": False,
+            "resume_supported": self.extension == ".pt",
         })
         self.writer.close()
         self.eval_env.close()
         plot_learning_curve(self.run_dir)
 
 
-def train_custom(settings, seed, device, run_dir):
+def train_custom(settings, seed, device, run_dir, resume=False, checkpoint_freq=10000,
+                 session_steps=None):
     config = SACConfig(**settings["agent"])
-    model = SACAgent(config, seed, device)
     env = make_env(settings, split="train")
     check_spaces(env, config)
     env.action_space.seed(seed)
-    recorder = TrainingRecorder(run_dir, settings, seed, "custom", env.unwrapped.data_pipeline)
-    observation, _ = env.reset(seed=seed)
-    recorder.validate(model, 0)
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    state = load_resume(run_dir / "resume.pt", settings, metadata, device) if resume else None
+    start = state["step"] if state else 0
+    recorder = TrainingRecorder(
+        run_dir, settings, seed, "custom", env.unwrapped.data_pipeline,
+        resume_step=start + 1 if state else None,
+    )
+    if state:
+        model, observation = restore_resume(state, env, recorder, device)
+        print(f"Tiếp tục seed {seed} từ bước {start:,}", flush=True)
+    else:
+        model = SACAgent(config, seed, device)
+        observation, _ = env.reset(seed=seed)
+        recorder.validate(model, 0)
+        save_resume(run_dir / "resume.pt", model, env, recorder, 0, observation, metadata)
     training = settings["training"]
     metrics = {}
 
-    for step in range(1, training["total_timesteps"] + 1):
+    for step in range(start + 1, training["total_timesteps"] + 1):
         if step <= config.learning_starts:
             action = env.action_space.sample()
         else:
@@ -137,9 +151,21 @@ def train_custom(settings, seed, device, run_dir):
             recorder.progress(step, metrics)
         if step % training["eval_freq"] == 0:
             recorder.validate(model, step)
+        if step % checkpoint_freq == 0:
+            save_resume(run_dir / "resume.pt", model, env, recorder, step, observation, metadata)
+        if session_steps and step - start >= session_steps and step < training["total_timesteps"]:
+            save_resume(run_dir / "resume.pt", model, env, recorder, step, observation, metadata)
+            recorder.writer.close()
+            recorder.eval_env.close()
+            env.close()
+            print(f"Đã lưu tiến độ tại bước {step:,}; chạy lại cùng lệnh với --resume.", flush=True)
+            return False
 
     recorder.finish(model, training["total_timesteps"])
+    save_resume(run_dir / "resume.pt", model, env, recorder,
+                training["total_timesteps"], observation, metadata)
     env.close()
+    return True
 
 
 def train_sb3(settings, seed, device, run_dir):
@@ -192,7 +218,14 @@ def main():
     parser.add_argument("--eval-days", type=int)
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     parser.add_argument("--output", type=Path, default=Path("runs/sac"))
+    parser.add_argument("--resume", action="store_true", help="Tiếp tục custom SAC từ resume.pt")
+    parser.add_argument("--checkpoint-freq", type=int, default=10000)
+    parser.add_argument("--session-steps", type=int, help="Giới hạn bước mỗi lần chạy, sau đó lưu để tiếp tục")
     args = parser.parse_args()
+    if args.checkpoint_freq < 1 or (args.session_steps is not None and args.session_steps < 1):
+        parser.error("Tần suất checkpoint và số bước trong phiên phải dương.")
+    if args.backend != "custom" and (args.resume or args.session_steps):
+        parser.error("Resume/giới hạn phiên hiện hỗ trợ SAC tự viết.")
 
     settings = read_settings(args.config, args.env_config)
     for argument, key in ((args.steps, "total_timesteps"), (args.eval_freq, "eval_freq"),
@@ -216,7 +249,8 @@ def main():
 
     for seed in training["seeds"]:
         run_dir = args.output / f"{args.backend}_seed{seed}"
-        if run_dir.exists() and any(run_dir.iterdir()):
+        continuing = args.resume and (run_dir / "resume.pt").is_file()
+        if run_dir.exists() and any(run_dir.iterdir()) and not continuing:
             parser.error(f"Thư mục đã có kết quả: {run_dir}. Hãy chọn --output khác.")
         run_dir.mkdir(parents=True, exist_ok=True)
         seed_everything(seed, training["torch_threads"])
@@ -224,10 +258,21 @@ def main():
         settings["agent"] = asdict(SACConfig(**settings["agent"]))
         metadata = experiment_metadata(settings, args.backend, seed)
         metadata["device"] = args.device
-        write_json(run_dir / "metadata.json", metadata)
+        if continuing:
+            # Kiểm tra trước khi ghi đè bất kỳ kết quả cũ nào.
+            load_resume(run_dir / "resume.pt", settings, metadata, args.device)
+        else:
+            write_json(run_dir / "metadata.json", metadata)
         print(f"Huấn luyện {args.backend}, seed={seed}, {training['total_timesteps']:,} bước", flush=True)
-        trainer = train_custom if args.backend == "custom" else train_sb3
-        trainer(settings, seed, args.device, run_dir)
+        if args.backend == "custom":
+            complete = train_custom(
+                settings, seed, args.device, run_dir, continuing,
+                args.checkpoint_freq, args.session_steps,
+            )
+            if not complete:
+                break
+        else:
+            train_sb3(settings, seed, args.device, run_dir)
         print(f"Đã lưu kết quả tại {run_dir.resolve()}", flush=True)
 
 

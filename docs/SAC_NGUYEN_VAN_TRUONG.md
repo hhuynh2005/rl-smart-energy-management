@@ -2,6 +2,8 @@
 
 Tài liệu hướng dẫn đọc mã nguồn, chạy thí nghiệm và bàn giao mô hình SAC cho nhóm SEMS-RL. Trường phụ trách thuật toán SAC tự viết bằng PyTorch; Huỳnh phối hợp về hàm thưởng; Sơn phụ trách môi trường; Dương phụ trách đánh giá tổng hợp. Bản SAC của Stable-Baselines3 (SB3) dùng làm tham chiếu kiểm tra.
 
+Quy trình Google Colab mới, phân tích S2/S3 và cách thử mục tiêu có định giá pin được trình bày tại [SAC trên Colab](SAC_COLAB_NGUYEN_VAN_TRUONG.md). Các quy ước mô tả dưới đây là cấu hình `original`; cấu hình `daily_inventory` dùng gamma=1 và kết thúc thật sau một ngày.
+
 Kết quả kiểm tra và hai lượt huấn luyện 50.000 bước được ghi trong [báo cáo chạy thử SAC](BAO_CAO_SAC_CHAY_THU.md), kèm CSV và biểu đồ có thể đưa vào báo cáo nhóm.
 
 ## Phạm vi và cấu trúc mã nguồn
@@ -19,7 +21,7 @@ SAC nhận quan sát 7 chiều và trả một hành động liên tục trong [
 
 Các điều chỉnh thí nghiệm nằm trong `SACScenarioWrapper`. Môi trường gốc, CSV, bộ lọc an toàn và giao diện hiện tại của nhóm giữ nguyên. Khi so sánh với TD3, PPO và DDQN, Dương cần áp dụng cùng wrapper/quy ước cho tất cả phương pháp.
 
-## Giải thích thuật toán để vấn đáp
+## Giải thích thuật toán SAC
 
 ### Actor và cách lấy hành động
 
@@ -107,11 +109,41 @@ Tham số `--env-config` cho phép dùng một YAML môi trường khác khi là
 Để trực tiếp kiểm chứng mô hình đã lưu, mở màn hình riêng cho SAC:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install streamlit plotly
+.\.venv\Scripts\python.exe -m pip install -r requirements-sac-ui.txt
 .\.venv\Scripts\python.exe -m streamlit run dashboard_sac.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-Truy cập `http://127.0.0.1:8501`. Mặc định dùng SAC tự viết đã huấn luyện 50.000 bước. Chọn ngày/kịch bản để chạy lại 96 quyết định; thanh trượt bước cho thấy lệnh agent đề nghị, công suất thực hiện sau bộ lọc và mức pin trước/sau. Có thể chuyển sang mô hình SB3, xem đường cong học và tải CSV. Giao diện chỉ chạy suy luận, không tự huấn luyện lại hoặc thay đổi trọng số.
+Truy cập `http://127.0.0.1:8501`. Giao diện tự tìm các thư mục thí nghiệm trong `runs/` có `configuration_lock.json` và `final/custom_seedN/metadata.json`. Chọn đúng thư mục ở thanh bên trái; có thể nhập đường dẫn đến một bản kết quả khác. Giao diện dùng checkpoint `best.pt` của seed đang chọn để suy luận trên CPU, không huấn luyện lại hoặc thay đổi trọng số.
+
+Thư mục `runs/sac_colab_20261128` trên máy Trường là bản nhập từ notebook `1TgwK1dMXlrgfsZvICkgGDKMDDxPCEtxt` và thư mục Drive đã chia sẻ. Có 5 seed chính thức, mỗi seed 300.000 bước, cấu hình `daily_inventory`, thiết bị huấn luyện CPU. `import_manifest.json` ghi nguồn và SHA-256 của từng file đã nhập. Checkpoint và CSV nằm trong `runs/`, được Git bỏ qua; người khác clone mã nguồn cần tải/sao chép riêng thư mục kết quả này.
+
+Màn hình gồm năm phần:
+
+1. **Tổng quan:** chi phí S5, độ lệch chuẩn giữa seed, ngân sách đã chạy và bước checkpoint tốt nhất của từng seed.
+2. **Log huấn luyện:** reward/chi phí validation theo bước, dấu sao tại checkpoint được chọn, cùng loss, alpha, Q từ `training.csv`; tải CSV và console gốc.
+3. **Đánh giá S1–S5:** đối chiếu SAC, No-battery, Rule-based trên cùng tập ngày; đọc tiền điện gốc, tổng chi phí, hao mòn và số lệnh bị cắt.
+4. **Hành vi sạc/xả:** chọn seed, ngày, kịch bản và SoC đầu; chạy 96 quyết định của checkpoint thật. Cả ba phương pháp dùng cùng điều kiện. Đồ thị SoC thêm mốc đầu ngày và đặt SoC sau hành động tại cuối khoảng 15 phút tương ứng.
+5. **Nguồn & cách chạy:** đối chiếu hash dữ liệu/cấu hình/checkpoint, xem cấu hình và tải báo cáo HTML tương tác.
+
+Khi so sánh hai lượt CPU/GPU, giữ nguyên ngày, kịch bản, SoC đầu, cấu hình và tập đánh giá. Không xếp hạng mô hình chỉ bằng hình SoC của hai ngày khác nhau. Tiết kiệm tổng chi phí trong giao diện được tính từ `adjusted_total_cost_vnd_mean`, khác với trung bình phần trăm tiết kiệm tiền điện từng ngày `adjusted_cost_saving_pct_mean`.
+
+Tổng hợp lại CSV và báo cáo HTML mà không huấn luyện lại:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.summarize_sac_results --experiment runs/sac_colab_20261128
+```
+
+Các đầu ra nằm ở `analysis/`: `seed_summary.csv`, `training_all_seeds.csv`, `validation_all_seeds.csv`, `evaluation_comparison.csv`, `integrity.csv`, `bao_cao_sac.html` và `colab_console.log`. Console trong notebook bắt đầu khi seed 0 tiếp tục từ 190.000 bước; CSV gốc và `training_summary.json` chứa lịch sử/thời gian đầy đủ, không suy ra tổng thời gian từ một phiên console.
+
+Notebook nguồn chạy `STAGE='final'` nên có validation, chưa chạy test. Bản kiểm chứng cục bộ đã đánh giá test từ đúng năm checkpoint sau khi xác nhận ngân sách/cấu hình, khóa hash mô hình và chạy lại validation khớp dưới 0,01 đồng/ngày về tổng chi phí điều chỉnh. Kết quả test nằm riêng ở `final_test/`; `evaluation_origin.json` ghi nguồn đánh giá cục bộ. Validation gốc từ Drive được giữ nguyên. Giao diện luôn ghi rõ phân vùng đang xem; khi thiếu test, nó không lấy validation để thay thế.
+
+Lệnh đánh giá checkpoint đã khóa (dùng kết quả sẵn có nếu đã hoàn tất):
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.evaluate_locked_sac --experiment runs/sac_colab_20261128 --split test
+```
+
+Chỉ đánh giá test sau khi đã đủ ngân sách và khóa mô hình; không chọn lại cấu hình/checkpoint dựa trên test. Bộ đánh giá giữ các điều kiện này bằng `colab_sac.evaluate_final()`.
 
 Mỗi lần chạy nằm trong thư mục `backend_seedN`, gồm:
 
@@ -162,7 +194,7 @@ Giá tham chiếu là trung bình giá mua điện của TRAIN, dùng chung cho 
 - `cost_saving_pct`: tiết kiệm hóa đơn gốc từng ngày.
 - `adjusted_cost_saving_pct`: tiết kiệm sau điều chỉnh tồn kho từng ngày.
 
-Hàm thưởng huấn luyện giữ nguyên theo môi trường. Vì vậy tiêu chí chọn checkpoint có thêm điều chỉnh tồn kho so với mục tiêu thưởng gốc; phải nêu điều này khi trình bày kết quả. Dương cần báo cáo cả hai góc nhìn, không gọi chi phí điều chỉnh là hóa đơn EVN.
+Ở cấu hình `original`, hàm thưởng huấn luyện giữ nguyên theo môi trường. Vì vậy tiêu chí chọn checkpoint có thêm điều chỉnh tồn kho so với mục tiêu thưởng gốc; phải nêu điều này khi trình bày kết quả. Cấu hình thử `daily_inventory` bổ sung khoản định giá vào reward từng bước, dùng gamma=1 và terminal cuối ngày để tổng reward khớp tiêu chí chi phí ngày. Dương cần báo cáo đúng cấu hình được chọn và cả hai góc nhìn chi phí, không gọi chi phí điều chỉnh là hóa đơn EVN.
 
 ### Kịch bản thử nghiệm
 
@@ -192,22 +224,9 @@ Bản tự viết hỗ trợ `SACAgent.load(path, device="cpu")` và `model.pred
 
 Để chạy lại đánh giá trên máy khác, chuyển cả thư mục lần chạy và CSV cùng nội dung. Dùng `--data-path data/processed.csv` nếu đường dẫn khác. Công cụ kiểm tra hash CSV và từ chối so sánh những lần chạy khác cấu hình môi trường/quy ước.
 
-Checkpoint chứa các mạng và optimizer, nhưng không lưu replay buffer, trạng thái RNG hoặc trạng thái môi trường. Nạp mô hình phù hợp cho suy luận/đánh giá, không phải khôi phục chính xác một lượt huấn luyện bị gián đoạn. Nếu làm tiếp cơ chế resume, cần bổ sung đầy đủ những trạng thái này.
+`best.pt`/`last.pt` chứa các mạng và optimizer, phục vụ suy luận/đánh giá. `resume.pt` mới của SAC tự viết có thêm replay buffer, RNG, trạng thái môi trường và log/best đồng bộ; dùng `--resume` với cùng cấu hình, seed, thư mục và CPU/CUDA để tiếp tục seed bị gián đoạn. Snapshot được lưu mỗi 10.000 bước. Các lượt pilot cũ chỉ có best/last, không có snapshot đầy đủ để resume. SB3 hiện chưa có chức năng resume trong công cụ này.
 
 Để so sánh SAC/TD3/PPO/DDQN, các thành viên có thể đưa mô hình vào `evaluate_policy` thông qua cùng giao diện predict. DDQN cần thêm bước giải mã hành động rời rạc trước khi trả về lệnh liên tục; không đưa trực tiếp chỉ số 0–10 vào môi trường gốc.
-
-## Câu hỏi thường gặp khi vấn đáp
-
-1. **Vì sao dùng SAC?** Hành động điều khiển công suất là liên tục; SAC học từ trải nghiệm cũ và duy trì khám phá bằng entropy. Độ hiệu quả thực tế phải kiểm chứng bằng thực nghiệm.
-2. **Vì sao dùng hai Q?** Giảm ảnh hưởng của ước lượng quá cao bằng cách lấy min; không bảo đảm Q luôn chính xác.
-3. **Vì sao có mạng đích?** Làm mục tiêu Bellman thay đổi chậm hơn trong quá trình học.
-4. **Vì sao actor có Gaussian và tanh?** Gaussian giúp lấy mẫu để khám phá, tanh giữ hành động trong giới hạn.
-5. **Alpha làm gì?** Điều chỉnh trọng số entropy so với giá trị Q, học theo entropy mục tiêu.
-6. **Vì sao phải chuẩn hóa thưởng?** Giảm chênh lệch thang đo tiền VNĐ, giúp các giá trị số trong quá trình học dễ kiểm soát hơn.
-7. **Vì sao tách train, validation, test?** Train cập nhật mạng; validation chọn cấu hình/mô hình; test đo kết quả cuối cùng.
-8. **Mức pin luôn an toàn có chứng minh agent tốt không?** Chưa đủ, vì bộ lọc có thể liên tục sửa lệnh; cần xem cả số lệnh bị cắt và hiệu quả kinh tế.
-9. **Vì sao tiền điện giảm mà mô hình chưa tốt?** Có thể đã dùng điện sẵn trong pin hoặc tăng hao mòn/đỉnh tải. Cần xem nhiều chỉ số và lượng pin cuối ngày.
-10. **SAC có chắc thắng PPO/TD3 không?** Không. Cần báo cáo đúng dữ liệu, số seed và độ bất định; không điều chỉnh thí nghiệm để ép một thuật toán thắng.
 
 ## Tài liệu tham khảo
 

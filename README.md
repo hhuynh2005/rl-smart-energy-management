@@ -19,6 +19,10 @@
 
 ## 1. Giới thiệu đề tài & Kiến trúc tổng thể
 
+**Chạy SAC trên Colab:** xem [hướng dẫn Colab và phân tích S2/S3](docs/SAC_COLAB_NGUYEN_VAN_TRUONG.md). Chạy `python scripts/build_sac_colab.py --gpu-only` để tạo bản GPU chạy mới có sẵn mã nguồn và CSV trong `runs/colab_delivery/`. Lệnh không có `--gpu-only` tạo thêm bản tham chiếu CPU, yêu cầu checkpoint pilot cũ ở `runs/sac_pilot/custom_seed0/`.
+
+**Xem log và kết quả SAC:** cài `python -m pip install -r requirements-sac-ui.txt`, sau đó chạy `python -m streamlit run dashboard_sac.py --server.address 127.0.0.1 --server.port 8501` và mở `http://127.0.0.1:8501`. Màn hình đọc thí nghiệm đã lưu trong `runs/`, hiển thị năm seed, checkpoint, đường học, đánh giá validation/test riêng và mô phỏng cùng ngày. Xem [cách chuẩn bị kết quả và chạy giao diện](docs/SAC_NGUYEN_VAN_TRUONG.md#cách-đọc-kết-quả).
+
 **Phần SAC của Nguyễn Văn Trường:** xem [hướng dẫn đọc mã, huấn luyện, kiểm thử và ghi chú bàn giao cho Dương](docs/SAC_NGUYEN_VAN_TRUONG.md). Mã tự viết ở `sems_rl/agents/sac.py`; chạy bằng `train_sac.py` và `evaluate_sac.py`.
 
 Dự án **SEMS-RL** xây dựng hệ thống điều khiển thông minh lịch nạp/xả của hệ thống pin lưu trữ năng lượng (**BESS** - 200 kWh / 50 kW) kết hợp nguồn điện mặt trời áp mái (**Solar PV** - 150 kWp) và lưới điện quốc gia EVN theo biểu giá 3 mức (**TOU** - Time of Use).

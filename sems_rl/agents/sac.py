@@ -252,11 +252,9 @@ class SACAgent:
             raise FloatingPointError(f"SAC gặp giá trị không hữu hạn: {metrics}")
         return metrics
 
-    def save(self, path):
-        """Lưu mạng và optimizer. Replay buffer không lưu: đây không phải resume đầy đủ."""
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({
+    def checkpoint_state(self):
+        """Trọng số và optimizer; bộ nhớ/RNG được lưu riêng khi resume trên Colab."""
+        return {
             "config": asdict(self.config), "seed": self.seed,
             "actor": self.actor.state_dict(), "q1": self.q1.state_dict(),
             "q2": self.q2.state_dict(), "target_q1": self.target_q1.state_dict(),
@@ -266,12 +264,25 @@ class SACAgent:
             "critic_optimizer": self.critic_optimizer.state_dict(),
             "alpha_optimizer": self.alpha_optimizer.state_dict(),
             "update_count": self.update_count,
-        }, path)
+        }
+
+    def save(self, path):
+        """Lưu checkpoint suy luận. Ghi tạm rồi thay thế để hạn chế file dang dở."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(path.name + ".tmp")
+        torch.save(self.checkpoint_state(), temporary)
+        temporary.replace(path)
 
     @classmethod
     def load(cls, path, device="cpu"):
         """Nạp mô hình để dự đoán; chỉ chứa tensor và dữ liệu cấu hình cơ bản."""
         checkpoint = torch.load(path, map_location=device, weights_only=True)
+        return cls.from_checkpoint(checkpoint, device)
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint, device="cpu"):
+        """Dùng chung khi nạp best.pt và khi khôi phục phiên huấn luyện."""
         agent = cls(SACConfig(**checkpoint["config"]), checkpoint["seed"], device)
         for name in ("actor", "q1", "q2", "target_q1", "target_q2"):
             getattr(agent, name).load_state_dict(checkpoint[name])
