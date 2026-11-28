@@ -1,0 +1,42 @@
+# Thử tăng rollout n_steps=960 (10 ngày/env = 80 ngày/rollout) + batch=512 để giảm phương sai giữa các seed
+agent:
+  algorithm: ppo
+  backend: sb3
+  observation_dim: 7
+  action_dim: 1
+  net_arch:
+    pi: [256, 256]
+    vf: [256, 256]
+  activation: tanh
+  n_envs: 8
+  n_steps: 960
+  batch_size: 512
+  n_epochs: 4
+  learning_rate: 0.00015
+  lr_schedule: linear
+  gamma: 0.99
+  gae_lambda: 0.97
+  clip_range: 0.1
+  ent_coef: 0.002
+  vf_coef: 1.5
+  max_grad_norm: 0.5
+  target_kl: 0.008
+  normalize_reward: true
+  clip_action_eval: true
+  use_sde: true
+  sde_sample_freq: 8
+  log_std_init: -0.7
+
+training:
+  total_timesteps: 300000
+  seeds: [0, 1, 2, 3, 4]
+  eval_freq: 20000
+  eval_days: 54
+  log_freq: 7680
+  torch_threads: 1
+
+evaluation:
+  initial_soc: 0.5
+  pv_scale_cloudy: 0.5
+  sigma_load: 0.08
+  sigma_pv: 0.15
