@@ -1,0 +1,30 @@
+{
+  "split": "test",
+  "scenarios": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5"
+  ],
+  "max_days": null,
+  "fingerprint": "dfcf3809d9763677e137ffa4a62bdbc1b697bc5eefadac43ac735591bec01ccc",
+  "runs": [
+    {
+      "method": "ddqn",
+      "path": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\runs\\ddqn\\ddqn_seed0"
+    },
+    {
+      "method": "ddqn",
+      "path": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\runs\\ddqn\\ddqn_seed1"
+    },
+    {
+      "method": "ddqn",
+      "path": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\runs\\ddqn\\ddqn_seed2"
+    }
+  ],
+  "noise_seed_base": 0,
+  "dataset_used": "D:\\STUDY\\LyDinhSon_65KTPM_Nam4\\hoc_TC\\rl-smart-energy-management\\data\\processed.csv",
+  "std_definition": "Độ lệch chuẩn mẫu giữa các trung bình seed; 1 seed ghi 0.",
+  "selection_metric": "adjusted_total_cost_vnd_mean (càng thấp càng tốt)"
+}

@@ -1,0 +1,10 @@
+# Các thư viện đủ để huấn luyện, đánh giá và kiểm thử SAC, không cần frontend/API.
+# Phiên bản thực dùng được ghi trong metadata.json của từng thí nghiệm.
+torch>=2.3,<3
+gymnasium>=1.0,<2
+stable-baselines3>=2.3,<3
+numpy>=1.24
+pandas>=2.0
+pyyaml>=6.0
+matplotlib>=3.7
+tensorboard>=2.14

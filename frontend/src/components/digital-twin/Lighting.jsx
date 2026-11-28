@@ -4,15 +4,16 @@ import { Sky } from '@react-three/drei';
 import { useQualityStore } from '../../store/useQualityStore';
 
 /**
- * Lighting Component - Dynamic 24-hour Celestial Arc & Atmospheric Illumination
- * - Physically calibrated sun and moon directional light
- * - Color temperature shift matching time of day:
- *   + Dawn (05:00-07:00): Warm amber 3000K, long dramatic shadows
- *   + Midday (11:00-13:00): Crisp white 6000K, high altitude (65° elevation)
- *   + Sunset (17:00-19:00): Deep golden-red 2500K
- *   + Night (19:00-05:00): Cool moonlight 8000K
- * - High-resolution soft shadow maps (PCFSoftShadowMap)
- * - Streetlamps, architectural facade lights, and building window emissive glow
+ * Deterministic pseudo-random helper in [0, 1) to keep render pure for React Compiler / Oxlint
+ */
+function seededUnit(seed) {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/**
+ * Lighting Component - Continuous 24-hour Celestial Arc calibrated for the TLU Campus
+ * Smoothly transitions from bright daylight (matching video template) through sunset to night.
  */
 export default function Lighting({ hour = 12 }) {
   const { quality, getConfig } = useQualityStore();
@@ -20,86 +21,86 @@ export default function Lighting({ hour = 12 }) {
 
   const sunLightRef = useRef();
   const moonLightRef = useRef();
-  const hemiLightRef = useRef();
   const starsRef = useRef();
 
-  // Compute sun and moon coordinates based on hour [0..24]
   const celestialData = useMemo(() => {
-    // Sun rises at 06:00, peaks at 12:00, sets at 18:00
     const sunAngle = ((hour - 6) / 12) * Math.PI;
     const isSunUp = hour >= 5.5 && hour <= 18.5;
 
-    // Radius of celestial orbit
-    const r = 90;
+    const r = 140;
     const sunX = Math.cos(sunAngle) * r;
-    const sunY = Math.max(-12, Math.sin(sunAngle) * r);
-    const sunZ = -25 + Math.sin(sunAngle) * 20;
+    const sunY = Math.max(-18, Math.sin(sunAngle) * r);
+    const sunZ = -30 + Math.sin(sunAngle) * 35;
 
-    // Moon is opposite to the sun
     const moonAngle = sunAngle + Math.PI;
     const moonX = Math.cos(moonAngle) * r;
-    const moonY = Math.max(-8, Math.sin(moonAngle) * r);
-    const moonZ = 25;
+    const moonY = Math.max(-12, Math.sin(moonAngle) * r);
+    const moonZ = 35;
 
-    let sunColor = '#FFF5EB';
-    let sunIntensity = 2.6;
-    let skyTurbidity = 7;
-    let skyRayleigh = 1.0;
+    let sunColor = '#FFFDF5';
+    let sunIntensity = 2.7;
+    let skyTurbidity = 4.5;
+    let skyRayleigh = 0.65;
+    let ambientIntensity = 0.72;
+    let skyBg = '#93C5FD';
 
-    if (hour >= 5.0 && hour < 7.0) {
-      // Dawn / Sunrise
-      const t = (hour - 5.0) / 2.0;
-      sunColor = '#FFA050';
-      sunIntensity = 1.2 + t * 1.1;
-      skyTurbidity = 12;
-      skyRayleigh = 3.5;
-    } else if (hour >= 7.0 && hour <= 16.5) {
-      // Midday Crisp White
-      sunColor = '#FFFDF5';
-      sunIntensity = 2.8;
-      skyTurbidity = 6;
-      skyRayleigh = 0.8;
-    } else if (hour > 16.5 && hour <= 18.5) {
-      // Golden Hour / Sunset
-      const t = (18.5 - hour) / 2.0;
-      sunColor = '#FF5E36';
-      sunIntensity = 1.0 + t * 1.3;
-      skyTurbidity = 14;
-      skyRayleigh = 4.2;
+    if (hour >= 5.2 && hour < 7.2) {
+      const t = (hour - 5.2) / 2.0;
+      sunColor = '#FFB067';
+      sunIntensity = 1.1 + t * 1.4;
+      skyTurbidity = 11 - t * 5;
+      skyRayleigh = 3.2 - t * 2.0;
+      ambientIntensity = 0.36 + t * 0.34;
+      skyBg = t > 0.5 ? '#BAE6FD' : '#475569';
+    } else if (hour >= 7.2 && hour <= 16.5) {
+      sunColor = '#FFFDF7';
+      sunIntensity = 2.75;
+      skyTurbidity = 4.0;
+      skyRayleigh = 0.6;
+      ambientIntensity = 0.78;
+      skyBg = '#BAE6FD';
+    } else if (hour > 16.5 && hour <= 18.7) {
+      const t = (18.7 - hour) / 2.2;
+      sunColor = '#FF7043';
+      sunIntensity = 0.7 + t * 1.8;
+      skyTurbidity = 13 - t * 6;
+      skyRayleigh = 4.0 - t * 2.5;
+      ambientIntensity = 0.25 + t * 0.45;
+      skyBg = t > 0.45 ? '#94A3B8' : '#1E293B';
     } else {
-      // Night time
       sunIntensity = 0.0;
+      ambientIntensity = 0.22;
+      skyBg = '#0F172A';
     }
 
-    const moonIntensity = isSunUp ? 0.0 : 0.35;
+    const moonIntensity = isSunUp ? 0.0 : 0.48;
 
     return {
-      sunPos: [sunX, Math.max(1, sunY), sunZ],
-      moonPos: [moonX, Math.max(2, moonY), moonZ],
+      sunPos: [sunX, Math.max(2, sunY), sunZ],
+      moonPos: [moonX, Math.max(4, moonY), moonZ],
       sunColor,
-      sunIntensity: config.shadows ? sunIntensity : sunIntensity * 0.8,
+      sunIntensity: config.shadows ? sunIntensity : sunIntensity * 0.85,
       moonIntensity,
       isSunUp,
       skyTurbidity,
       skyRayleigh,
-      ambientIntensity: isSunUp ? 0.5 : 0.16,
+      ambientIntensity,
+      skyBg,
     };
   }, [hour, config.shadows]);
 
-  // Subtle twinkle for night starfield
   useFrame((_, delta) => {
     if (starsRef.current) {
-      starsRef.current.rotation.y += delta * 0.002;
+      starsRef.current.rotation.y += delta * 0.0015;
     }
   });
 
-  // Procedural starfield
   const starPositions = useMemo(() => {
     const coords = [];
-    for (let i = 0; i < 450; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(Math.random() * 0.85 + 0.15);
-      const dist = 110;
+    for (let i = 0; i < 420; i++) {
+      const theta = seededUnit(i * 3 + 1) * Math.PI * 2;
+      const phi = Math.acos(seededUnit(i * 3 + 2) * 0.85 + 0.15);
+      const dist = 210;
       coords.push(
         dist * Math.sin(phi) * Math.cos(theta),
         dist * Math.cos(phi),
@@ -111,27 +112,27 @@ export default function Lighting({ hour = 12 }) {
 
   return (
     <group name="LightingRig">
-      {/* 1. Atmospheric Sky Dome */}
-      <Sky
-        distance={450000}
-        sunPosition={celestialData.sunPos}
-        turbidity={celestialData.skyTurbidity}
-        rayleigh={celestialData.skyRayleigh}
-        mieCoefficient={0.005}
-        mieDirectionalG={0.8}
-      />
+      <color attach="background" args={[celestialData.skyBg]} />
 
-      {/* 2. Hemisphere Light (Sky cool tone / Ground warm reflection) */}
+      {celestialData.isSunUp && (
+        <Sky
+          distance={450000}
+          sunPosition={celestialData.sunPos}
+          turbidity={celestialData.skyTurbidity}
+          rayleigh={celestialData.skyRayleigh}
+          mieCoefficient={0.005}
+          mieDirectionalG={0.8}
+        />
+      )}
+
       <hemisphereLight
-        ref={hemiLightRef}
         args={[
-          celestialData.isSunUp ? '#E0F2FE' : '#1E1B4B',
-          celestialData.isSunUp ? '#374151' : '#0B0F19',
+          celestialData.isSunUp ? '#F0F9FF' : '#312E81',
+          celestialData.isSunUp ? '#64748B' : '#0F172A',
           celestialData.ambientIntensity,
         ]}
       />
 
-      {/* 3. Main Directional Sun Light with Soft Shadows */}
       <directionalLight
         ref={sunLightRef}
         position={celestialData.sunPos}
@@ -140,107 +141,70 @@ export default function Lighting({ hour = 12 }) {
         castShadow={config.shadows && celestialData.isSunUp}
         shadow-mapSize-width={config.shadowMapSize}
         shadow-mapSize-height={config.shadowMapSize}
-        shadow-camera-near={5}
-        shadow-camera-far={220}
-        shadow-camera-left={-55}
-        shadow-camera-right={55}
-        shadow-camera-top={55}
-        shadow-camera-bottom={-55}
-        shadow-bias={-0.0003}
-        shadow-normalBias={0.02}
+        shadow-camera-near={10}
+        shadow-camera-far={360}
+        shadow-camera-left={-130}
+        shadow-camera-right={130}
+        shadow-camera-top={110}
+        shadow-camera-bottom={-110}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.03}
       />
 
-      {/* Visual Sun Orb */}
       {celestialData.isSunUp && (
         <mesh position={celestialData.sunPos}>
-          <sphereGeometry args={[3.5, 16, 16]} />
+          <sphereGeometry args={[4.5, 16, 16]} />
           <meshBasicMaterial color={celestialData.sunColor} />
         </mesh>
       )}
 
-      {/* 4. Directional Moon Light during Night */}
       <directionalLight
         ref={moonLightRef}
         position={celestialData.moonPos}
         intensity={celestialData.moonIntensity}
-        color="#818CF8"
+        color="#93C5FD"
         castShadow={config.shadows && !celestialData.isSunUp && quality !== 'low'}
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
         shadow-camera-near={10}
-        shadow-camera-far={200}
-        shadow-camera-left={-45}
-        shadow-camera-right={45}
-        shadow-camera-top={45}
-        shadow-camera-bottom={-45}
+        shadow-camera-far={320}
+        shadow-camera-left={-110}
+        shadow-camera-right={110}
+        shadow-camera-top={90}
+        shadow-camera-bottom={-90}
       />
 
-      {/* Visual Moon Orb */}
       {!celestialData.isSunUp && (
-        <mesh position={celestialData.moonPos}>
-          <sphereGeometry args={[2.5, 16, 16]} />
-          <meshStandardMaterial
-            color="#E0E7FF"
-            emissive="#A5B4FC"
-            emissiveIntensity={0.8}
-            roughness={0.9}
-          />
-        </mesh>
-      )}
-
-      {/* 5. Night Starfield */}
-      {!celestialData.isSunUp && (
-        <points ref={starsRef}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={starPositions.length / 3}
-              array={starPositions}
-              itemSize={3}
+        <>
+          <mesh position={celestialData.moonPos}>
+            <sphereGeometry args={[3.2, 16, 16]} />
+            <meshStandardMaterial
+              color="#E0E7FF"
+              emissive="#A5B4FC"
+              emissiveIntensity={0.85}
+              roughness={0.9}
             />
-          </bufferGeometry>
-          <pointsMaterial
-            size={1.5}
-            color="#FFFFFF"
-            transparent
-            opacity={0.85}
-            sizeAttenuation
-          />
-        </points>
-      )}
+          </mesh>
 
-      {/* 6. Night Streetlamp & Building Facade Illuminators */}
-      {!celestialData.isSunUp && (
-        <group name="StreetNightLighting">
-          {[-40, -24, -8, 8, 24, 40].map((lx, idx) => (
-            <group key={idx} position={[lx, 6.2, -8]}>
-              <pointLight
-                color="#FEF08A"
-                intensity={quality === 'low' ? 0.9 : 1.8}
-                distance={18}
-                decay={2}
+          <points ref={starsRef}>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                count={starPositions.length / 3}
+                array={starPositions}
+                itemSize={3}
               />
-            </group>
-          ))}
-
-          {/* Building Facade Warm Point Lights */}
-          <pointLight
-            position={[0, 4.5, 3.5]}
-            color="#FEF08A"
-            intensity={quality === 'low' ? 0.8 : 1.6}
-            distance={16}
-            decay={2}
-          />
-          <pointLight
-            position={[-14, 4.5, -18]}
-            color="#38BDF8"
-            intensity={quality === 'low' ? 0.8 : 1.5}
-            distance={18}
-            decay={2}
-          />
-        </group>
+            </bufferGeometry>
+            <pointsMaterial
+              size={1.8}
+              color="#FFFFFF"
+              transparent
+              opacity={0.85}
+              sizeAttenuation
+            />
+          </points>
+        </>
       )}
     </group>
   );
 }
-

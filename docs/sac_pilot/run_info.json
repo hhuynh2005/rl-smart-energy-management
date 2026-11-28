@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-23",
+  "split": "val",
+  "steps_per_backend": 50000,
+  "seeds": [
+    0
+  ],
+  "scenario_days": {
+    "S1": 46,
+    "S2": 8,
+    "S3": 54,
+    "S4": 54,
+    "S5": 54
+  },
+  "models": {
+    "custom": {
+      "total_timesteps": 50000,
+      "best_step": 50000,
+      "best_validation_adjusted_total_cost_vnd": 858078.2270411305,
+      "validation_days": 54,
+      "training_seed": 0,
+      "elapsed_seconds": 588.6197603,
+      "test_used_for_selection": false,
+      "resume_supported": false
+    },
+    "sb3": {
+      "total_timesteps": 50000,
+      "best_step": 40000,
+      "best_validation_adjusted_total_cost_vnd": 844537.1636120555,
+      "validation_days": 54,
+      "training_seed": 0,
+      "elapsed_seconds": 798.8890534999991,
+      "test_used_for_selection": false,
+      "resume_supported": false
+    }
+  },
+  "versions": {
+    "python": "3.13.13",
+    "torch": "2.15.0+cpu",
+    "gymnasium": "1.4.0",
+    "stable_baselines3": "2.9.2",
+    "numpy": "2.5.5",
+    "pandas": "3.1.1"
+  },
+  "dataset_sha256": "9b8191f4d33b71a5d246f5306d3658e02050d4fba235ba2dedaf5eb318f9bdd7",
+  "test_used_for_selection": false,
+  "percentages_in_csv": "Mean of daily percentages, not ratio of aggregate bills"
+}

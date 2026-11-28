@@ -18,7 +18,7 @@ ENV/
 # Model checkpoints and logs
 logs/
 checkpoints/
-runs/
+
 *.zip
 *.pt
 *.pth
@@ -29,3 +29,5 @@ runs/
 .idea/
 .DS_Store
 Thumbs.db
+
+template-2026-11-11-193446.mp4

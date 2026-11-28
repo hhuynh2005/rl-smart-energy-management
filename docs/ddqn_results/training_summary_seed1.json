@@ -1,0 +1,10 @@
+{
+  "total_timesteps": 300000,
+  "best_step": 270000,
+  "best_validation_adjusted_total_cost_vnd": 793884.5373683649,
+  "validation_days": 54,
+  "training_seed": 1,
+  "elapsed_seconds": 2357.0227869,
+  "test_used_for_selection": false,
+  "resume_supported": false
+}
