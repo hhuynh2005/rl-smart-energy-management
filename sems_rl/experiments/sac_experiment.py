@@ -66,6 +66,9 @@ def protocol_fingerprint(metadata):
         "protocol": metadata["protocol"], "environment": environment,
         "evaluation": metadata["evaluation"], "data_sha256": metadata["data_sha256"],
     }
+    # Giữ tương thích checkpoint chạy thử cũ; mục tiêu mới có dấu vết riêng.
+    if metadata.get("objective", {}).get("mode", "original") != "original":
+        values["objective"] = metadata["objective"]
     return hashlib.sha256(json.dumps(values, sort_keys=True).encode("utf-8")).hexdigest()
 
 
@@ -79,6 +82,9 @@ def experiment_metadata(settings, backend, seed, dataset_path=None):
         "protocol": PROTOCOL, "environment": settings["environment"],
         "evaluation": settings["evaluation"], "data_sha256": data_hash,
     }
+    if settings.get("objective", {}).get("mode", "original") != "original":
+        protocol_values["protocol"] = "sac-daily-inventory-v2"
+        protocol_values["objective"] = settings["objective"]
     fingerprint = protocol_fingerprint(protocol_values)
     return {
         **protocol_values, "fingerprint": fingerprint,
@@ -99,7 +105,7 @@ class SACScenarioWrapper(gym.Wrapper):
     S4 chỉ nhiễu quan sát. S5 dùng nguyên các ngày của phân vùng được chọn.
     """
 
-    def __init__(self, env, scenario, evaluation):
+    def __init__(self, env, scenario, evaluation, daily_inventory=False):
         super().__init__(env)
         if scenario not in SCENARIOS:
             raise ValueError(f"Kịch bản không hợp lệ: {scenario}")
@@ -108,6 +114,11 @@ class SACScenarioWrapper(gym.Wrapper):
         self.pv_scale = evaluation["pv_scale_cloudy"] if scenario == "S3" else 1.0
         self.rng = np.random.default_rng(0)
         self.active_split = env.split
+        self.daily_inventory = daily_inventory
+        start, stop = env.data_pipeline.splits["train"]
+        self.reference_price = float(env.data_pipeline.df.iloc[
+            start * env.episode_steps:stop * env.episode_steps
+        ]["c_grid"].mean())
 
     def _noise(self, observation):
         observation = observation.copy()
@@ -142,6 +153,23 @@ class SACScenarioWrapper(gym.Wrapper):
 
     def step(self, action):
         observation, reward, terminated, truncated, info = self.env.step(action)
+        if self.daily_inventory:
+            # Chia khoản định giá pin cuối ngày vào từng bước: tổng các delta_SoC
+            # bằng SoC_đầu - SoC_cuối. Không cộng khoản này vào hóa đơn gốc.
+            base = self.unwrapped
+            adjustment = (
+                (info["old_soc"] - info["soc"]) * base.battery.e_cap
+                * base.battery.eta_d * self.reference_price
+            )
+            info["base_reward"] = reward
+            info["inventory_adjustment_step_vnd"] = adjustment
+            reward -= adjustment / base.c_ref
+            info["reward"] = float(reward)
+            if truncated:
+                # Bài toán hữu hạn một ngày: gamma=1 và không bootstrap qua reset.
+                # Khi đó tổng reward = - adjusted_total_cost / C_ref chính xác.
+                terminated, truncated = True, False
+                info["continuation"] = "daily_inventory_terminal"
         if truncated:
             base = self.unwrapped
             next_day = base.current_day_offset + 1
@@ -160,10 +188,15 @@ class SACScenarioWrapper(gym.Wrapper):
 
 
 def make_env(settings, split="train", scenario="S5", data_pipeline=None):
+    mode = settings.get("objective", {}).get("mode", "original")
+    if mode not in ("original", "daily_inventory"):
+        raise ValueError(f"Mục tiêu huấn luyện không hợp lệ: {mode}")
+    if mode == "daily_inventory" and settings["agent"]["gamma"] != 1.0:
+        raise ValueError("daily_inventory cần gamma=1 để khớp tổng chi phí một ngày.")
     base = MicrogridBessEnv(
         config_dict=settings["environment"], split=split, data_pipeline=data_pipeline
     )
-    return SACScenarioWrapper(base, scenario, settings["evaluation"])
+    return SACScenarioWrapper(base, scenario, settings["evaluation"], mode == "daily_inventory")
 
 
 def scenario_days(env, split, scenario, max_days=None):

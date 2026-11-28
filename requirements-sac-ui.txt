@@ -1,0 +1,4 @@
+# Giao diện log và suy luận SAC, không cần API/frontend của nhóm.
+-r requirements-sac.txt
+streamlit>=1.50,<2
+plotly>=5.15,<8
