@@ -141,19 +141,31 @@ def train_custom(settings, seed, device, run_dir, resume=False, checkpoint_freq=
     training = settings["training"]
     metrics = {}
 
+    # [MÃ GIẢ DÒNG 3]: repeat (Vòng lặp tương tác chính với môi trường)
     for step in range(start + 1, training["total_timesteps"] + 1):
+        # [MÃ GIẢ DÒNG 4]: Observe state s and select action a ~ pi_theta(.|s)
         if step <= config.learning_starts:
             action = env.action_space.sample()
         else:
             action, _ = model.predict(observation, deterministic=False)
+
+        # [MÃ GIẢ DÒNG 5 & 6]: Execute a in env; Observe next state s', reward r, done d
         next_observation, reward, terminated, truncated, _ = env.step(action)
+
+        # [MÃ GIẢ DÒNG 7]: Store (s, a, r, s', d) in replay buffer D
         # Lưu trạng thái cuối TRƯỚC reset. Chỉ terminated mới tắt bootstrap.
         model.buffer.add(observation, action, reward, next_observation, terminated)
         observation = next_observation
+
+        # [MÃ GIẢ DÒNG 8]: If s' is terminal, reset environment state
         if terminated or truncated:
             observation, _ = env.reset()
+
+        # [MÃ GIẢ DÒNG 9 & 10]: if it's time to update then for j in range(...)
+        # (Cập nhật mạng theo các bước 11-15 trong model.update())
         if step > config.learning_starts and model.buffer.size >= config.batch_size:
             metrics = model.update()
+
         if step % training["log_freq"] == 0:
             recorder.progress(step, metrics)
         if step % training["eval_freq"] == 0:
@@ -168,6 +180,7 @@ def train_custom(settings, seed, device, run_dir, resume=False, checkpoint_freq=
             print(f"Đã lưu tiến độ tại bước {step:,}; chạy lại cùng lệnh với --resume.", flush=True)
             return False
 
+    # [MÃ GIẢ DÒNG 18]: until convergence (Hoàn tất huấn luyện, lưu mô hình best.pt)
     recorder.finish(model, training["total_timesteps"])
     save_resume(run_dir / "resume.pt", model, env, recorder,
                 training["total_timesteps"], observation, metadata)

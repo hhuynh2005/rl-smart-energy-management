@@ -134,7 +134,9 @@ class ReplayBuffer:
 
 
 class SACAgent:
-    """Bộ điều khiển SAC; predict có cùng dạng kết quả với SB3 để dễ bàn giao."""
+    """Bộ điều khiển SAC chuẩn hóa theo thuật toán OpenAI Spinning Up (Algorithm 1).
+    predict có cùng dạng kết quả với SB3 để dễ bàn giao.
+    """
 
     def __init__(self, config=None, seed=0, device="cpu"):
         self.config = config or SACConfig()
@@ -144,14 +146,10 @@ class SACAgent:
         if self.device.type == "cuda":
             torch.cuda.manual_seed_all(seed)
 
+        # [MÃ GIẢ DÒNG 1]: Khởi tạo tham số chính sách theta, Q-functions phi_1, phi_2 và Replay Buffer rỗng D
         self.actor = Actor(self.config).to(self.device)
         self.q1 = Critic(self.config).to(self.device)
         self.q2 = Critic(self.config).to(self.device)
-        self.target_q1 = deepcopy(self.q1).requires_grad_(False)
-        self.target_q2 = deepcopy(self.q2).requires_grad_(False)
-        self.log_alpha = torch.tensor(
-            float(np.log(self.config.initial_alpha)), device=self.device, requires_grad=True
-        )
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=self.config.learning_rate
         )
@@ -159,8 +157,17 @@ class SACAgent:
             list(self.q1.parameters()) + list(self.q2.parameters()),
             lr=self.config.learning_rate,
         )
-        self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.config.learning_rate)
         self.buffer = ReplayBuffer(self.config, seed)
+
+        # [MÃ GIẢ DÒNG 2]: Khởi tạo các mạng đích phi_targ,1 <- phi_1, phi_targ,2 <- phi_2
+        self.target_q1 = deepcopy(self.q1).requires_grad_(False)
+        self.target_q2 = deepcopy(self.q2).requires_grad_(False)
+
+        # Khởi tạo hệ số nhiệt độ entropy tự điều chỉnh alpha (Bản SAC 2018 cải tiến)
+        self.log_alpha = torch.tensor(
+            float(np.log(self.config.initial_alpha)), device=self.device, requires_grad=True
+        )
+        self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.config.learning_rate)
         self.update_count = 0
 
     @property
@@ -188,7 +195,10 @@ class SACAgent:
         return (result[0] if single else result), None
 
     def compute_target(self, rewards, next_observations, terminated):
-        """y = r + gamma * (1 - terminated) * (min(Q1', Q2') - alpha * log pi)."""
+        """[MÃ GIẢ DÒNG 12]: Tính mục tiêu Bellman Target Q:
+        y(r, s', d) = r + gamma * (1 - d) * [ min_{i=1,2} Q_targ,i(s', a~') - alpha * log pi(a~'|s') ]
+        với a~' ~ pi_theta(.|s')
+        """
         with torch.no_grad():
             next_actions, next_log_probs = self.actor.sample(next_observations)
             next_q = torch.minimum(
@@ -200,13 +210,17 @@ class SACAgent:
             )
 
     def update(self):
-        """Một lần cập nhật gồm Critic -> Actor -> alpha -> hai mạng đích."""
+        """Một lần cập nhật gradient tương ứng các dòng 11 đến 15 của mã giả."""
+        # [MÃ GIẢ DÒNG 11]: Lấy mẫu ngẫu nhiên một batch chuyển trạng thái B = {(s, a, r, s', d)} từ Buffer D
         observations, actions, rewards, next_observations, terminated = self.buffer.sample(
             self.config.batch_size, self.device
         )
 
-        # 1. Critic học khớp mục tiêu Bellman; lấy min hai Q để giảm đánh giá quá cao.
+        # [MÃ GIẢ DÒNG 12]: Tính mục tiêu Bellman cho hàm Q (y)
         targets = self.compute_target(rewards, next_observations, terminated)
+
+        # [MÃ GIẢ DÒNG 13]: Cập nhật hai Q-functions bằng Gradient Descent theo MSE Loss:
+        # grad_phi_i (1/|B|) sum (Q_phi_i(s, a) - y)^2 cho i in {1, 2}
         q1 = self.q1(observations, actions)
         q2 = self.q2(observations, actions)
         critic_loss = 0.5 * (F.mse_loss(q1, targets) + F.mse_loss(q2, targets))
@@ -214,7 +228,9 @@ class SACAgent:
         critic_loss.backward()
         self.critic_optimizer.step()
 
-        # 2. Actor muốn Q cao và vẫn giữ khám phá. Không cập nhật Critic ở bước này.
+        # [MÃ GIẢ DÒNG 14]: Cập nhật chính sách Actor pi_theta bằng Gradient Ascent:
+        # grad_theta (1/|B|) sum [ min_{i=1,2} Q_phi_i(s, a~_theta(s)) - alpha * log pi_theta(a~_theta(s)|s) ]
+        # Khi code: đổi dấu thành Gradient Descent: Loss = alpha * log_pi - min_Q
         self.q1.requires_grad_(False)
         self.q2.requires_grad_(False)
         policy_actions, log_probs = self.actor.sample(observations)
@@ -228,7 +244,7 @@ class SACAgent:
         self.q1.requires_grad_(True)
         self.q2.requires_grad_(True)
 
-        # 3. Điều chỉnh alpha theo entropy mục tiêu. detach để không cập nhật Actor lần hai.
+        # Điều chỉnh tự động hệ số nhiệt độ alpha theo mục tiêu target_entropy = -dim(A) = -1.0
         alpha_loss = -(
             self.log_alpha * (log_probs.detach() + self.config.target_entropy)
         ).mean()
@@ -236,7 +252,8 @@ class SACAgent:
         alpha_loss.backward()
         self.alpha_optimizer.step()
 
-        # 4. Cập nhật mềm: mạng đích thay đổi chậm để mục tiêu học ít dao động hơn.
+        # [MÃ GIẢ DÒNG 15]: Cập nhật mềm mạng đích (Polyak target update):
+        # phi_targ,i <- rho * phi_targ,i + (1 - rho) * phi_i (với rho = 1 - tau)
         with torch.no_grad():
             for source, target in ((self.q1, self.target_q1), (self.q2, self.target_q2)):
                 for parameter, target_parameter in zip(source.parameters(), target.parameters()):
